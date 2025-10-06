@@ -37,18 +37,8 @@ tid_t process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
-  char *name = palloc_get_page (0);
-  if (name == NULL) {
-    palloc_free_page (fn_copy);
-    return TID_ERROR;
-  }
-  strlcpy (name, file_name, PGSIZE);
-  char *temp;
-  name = strtok_r (name, " ", &temp);
-
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (name, PRI_DEFAULT, start_process, fn_copy);
-  free(name);
+  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
   return tid;
@@ -224,8 +214,8 @@ bool load (const char *file_name, void (**eip) (void), void **esp)
     goto done;
   process_activate ();
 
-  char file_name_copy[PGSIZE];
-  strlcpy (file_name_copy, file_name, sizeof file_name_copy);
+  char file_name_copy[PGSIZE]; //palloc this
+  strlcpy (file_name_copy, file_name, sizeof file_name_copy); //sizeof is going to be the size of the pointer.  use strlen + 1
   char *ret_ptr;
   char *prog_name = strtok_r (file_name_copy, " ", &ret_ptr);
 
@@ -429,68 +419,82 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
   return true;
 }
 
-/* Create a minimal stack by mapping a zeroed page at the top of
-   user virtual memory. */
-static bool setup_stack (void **esp, const char* file_name)
-{
+static bool setup_stack(void **esp, const char *file_name) {
+    uint8_t *kpage;
+    bool success = false;
 
-  char *argv[128];
-  char *arg_address[128];
-  int argc = 0;
-  char *temp;
-  char *token = strtok_r(file_name, " ", &temp);
-  uint8_t *kpage;
-  bool success = false;
+    kpage = palloc_get_page(PAL_USER | PAL_ZERO);
+    if (kpage == NULL) return false;
 
-  kpage = palloc_get_page (PAL_USER | PAL_ZERO);
-  if (kpage != NULL) {
-      success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
-      if (success) {
-        *esp = PHYS_BASE;
-        while (token != NULL) {
-          argv[argc] = token;
-          argc++;
-          token = strtok_r(NULL, " ", &temp);
-        }
-        for (int i = argc - 1; i >= 0; i--) {
-          *esp = (uint8_t *) *esp - (strlen(argv[i]) + 1);
-          memcpy(*esp, argv[i], strlen(argv[i]) + 1);
-          arg_address[i] = *esp;  
-        }
-        uintptr_t misalign = (uintptr_t)(*esp) % 4;
-          if (misalign) {
-                *esp = (uint8_t *) *esp - misalign;
-            }
-
-            // null sentinel
-            *esp = (uint8_t *) *esp - sizeof(char *);
-            *(char **)(*esp) = NULL;
-
-            // push addresses of args
-            for (int i = argc - 1; i >= 0; i--) {
-                *esp = (uint8_t *) *esp - sizeof(char *);
-                memcpy(*esp, &arg_address[i], sizeof(char *));
-            }
-
-            // argv pointer
-            char **argv_start = *esp;
-            *esp = (uint8_t *) *esp - sizeof(char **);
-            memcpy(*esp, &argv_start, sizeof(char **));
-
-            // argc
-            *esp = (uint8_t *) *esp - sizeof(int);
-            memcpy(*esp, &argc, sizeof(int));
-
-            // fake return address
-            *esp = (uint8_t *) *esp - sizeof(void *);
-            *(void **)(*esp) = 0;
-      } else {
-        palloc_free_page (kpage);
-      }
+    success = install_page(((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
+    if (!success) {
+        palloc_free_page(kpage);
+        return false;
     }
-    hex_dump((uintptr_t)*esp, *esp, 128, true);
-    return success;
+
+    *esp = PHYS_BASE;
+
+    // Make a modifiable copy
+    char *cmdline_copy = malloc(strlen(file_name) + 1); //maybe should be palloc
+    if (cmdline_copy == NULL) return false;
+    strlcpy(cmdline_copy, file_name, strlen(file_name) + 1);
+
+    // First pass: count argc
+    int argc = 0;
+    char *token, *save_ptr;
+    for (token = strtok_r(cmdline_copy, " ", &save_ptr); token != NULL;
+         token = strtok_r(NULL, " ", &save_ptr))
+        argc++;
+
+    // Re-copy and second pass: push strings
+    strlcpy(cmdline_copy, file_name, strlen(file_name) + 1);
+    char *arg_address[128]; //#define this
+    int i = 0;
+    for (token = strtok_r(cmdline_copy, " ", &save_ptr); token != NULL;
+         token = strtok_r(NULL, " ", &save_ptr)) {
+        int len = strlen(token) + 1;
+        *esp = (uint8_t *) *esp - len;
+        memcpy(*esp, token, len);
+        arg_address[i++] = *esp;
+    }
+
+    // Word align
+    uintptr_t misalign = (uintptr_t)(*esp) % 4;
+    if (misalign) {
+        *esp = (uint8_t *) *esp - misalign;
+        memset(*esp, 0, misalign);
+    }
+
+    // Null sentinel
+    *esp = (uint8_t *) *esp - sizeof(char *);
+    *(char **)(*esp) = NULL;
+
+    // Push addresses
+    for (i = argc - 1; i >= 0; i--) {
+        *esp = (uint8_t *) *esp - sizeof(char *);
+        *(char **)(*esp) = arg_address[i];
+    }
+
+    // Push argv pointer
+    char **argv_start = *esp;
+    *esp = (uint8_t *) *esp - sizeof(char **);
+    *(char ***) *esp = argv_start;
+
+    // Push argc
+    *esp = (uint8_t *) *esp - sizeof(int);
+    *(int *)(*esp) = argc;
+
+    // Fake return address
+    *esp = (uint8_t *) *esp - sizeof(void *);
+    *(void **)(*esp) = NULL;
+
+    // Debug dump
+    hex_dump((uintptr_t)*esp, *esp, (uintptr_t)PHYS_BASE - (uintptr_t)*esp, true);
+
+    free(cmdline_copy);
+    return true;
 }
+
 
 /* Adds a mapping from user virtual address UPAGE to kernel
    virtual address KPAGE to the page table.
