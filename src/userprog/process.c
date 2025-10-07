@@ -227,7 +227,8 @@ bool load (const char *file_name, void (**eip) (void), void **esp)
   char *name = palloc_get_page (0);
   if (name == NULL)
     {
-      goto done;
+      file_close (file);
+      return false;
     }
   strlcpy (name, file_name, strlen(file_name) + 1);
   
@@ -315,7 +316,7 @@ bool load (const char *file_name, void (**eip) (void), void **esp)
     }
 
   /* Set up stack. */
-  if (!setup_stack (esp, file_name))
+  if (!setup_stack (esp, (char*) file_name))
     goto done;
 
   /* Start address. */
@@ -446,12 +447,12 @@ static bool setup_stack(void **esp, const char *file_name) {
       success = install_page((uint8_t *) PHYS_BASE - PGSIZE, kpage, true);
       if (success) {
         *esp = PHYS_BASE;
-        char *fn_copy = palloc_get_page (0);
-        if (fn_copy == NULL) {
-          palloc_free_page(kpage);
-          palloc_free_page(fn_copy);
-          return false;
-        }
+        char *fn_copy = palloc_get_page(strlen(file_name) + 1);
+         if (fn_copy == NULL) {
+           palloc_free_page(kpage);
+           palloc_free_page(fn_copy);
+           return false;
+         }
         strlcpy (fn_copy, file_name, strlen(file_name) + 1);
 
         int argc = 0;
@@ -474,6 +475,7 @@ static bool setup_stack(void **esp, const char *file_name) {
           *esp = (char *)*esp - padding;
           if (esp < 0) {
             palloc_free_page(kpage);
+            palloc_free_page(argv);
             palloc_free_page(fn_copy);
             return false;
           }
@@ -485,6 +487,7 @@ static bool setup_stack(void **esp, const char *file_name) {
           *esp = (char *)*esp -  sizeof(char*);
           if (esp < 0) {
             palloc_free_page(kpage);
+            palloc_free_page(argv);
             palloc_free_page(fn_copy);
             return false;
           }
@@ -494,6 +497,7 @@ static bool setup_stack(void **esp, const char *file_name) {
         *esp = (char *)*esp - sizeof(char **);
         if (esp < 0) {
           palloc_free_page(kpage);
+          palloc_free_page(argv);
           palloc_free_page(fn_copy);
           return false;
         }
@@ -501,6 +505,7 @@ static bool setup_stack(void **esp, const char *file_name) {
         *esp = (char *)*esp - sizeof(int);
         if (esp < 0) {
           palloc_free_page(kpage);
+          palloc_free_page(argv);
           palloc_free_page(fn_copy);
           return false;
         }
@@ -508,11 +513,13 @@ static bool setup_stack(void **esp, const char *file_name) {
         *esp = (char *)*esp - sizeof(void*);
         if (esp < 0) {
           palloc_free_page(kpage);
+          palloc_free_page(argv);
           palloc_free_page(fn_copy);
           return false;
         }
         *(void **) *esp = NULL;
-        hex_dump((uintptr_t) *esp, *esp, (uintptr_t) PHYS_BASE - (uintptr_t) *esp, true);
+        hex_dump((uintptr_t) esp, esp, (uintptr_t) PHYS_BASE - (uintptr_t) esp, true);
+        palloc_free_page(argv);
         palloc_free_page(fn_copy);
     }
     else
