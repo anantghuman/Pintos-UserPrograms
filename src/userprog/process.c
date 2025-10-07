@@ -48,6 +48,7 @@ tid_t process_execute (const char *file_name)
   char *n = strtok_r (name, " ", &temp);
 
   tid = thread_create (n, PRI_DEFAULT, start_process, fn_copy);
+  palloc_free_page(name);
   if (tid == TID_ERROR) {
     palloc_free_page (fn_copy);
   }
@@ -447,47 +448,44 @@ static bool setup_stack(void **esp, const char *file_name) {
       success = install_page((uint8_t *) PHYS_BASE - PGSIZE, kpage, true);
       if (success) {
         *esp = PHYS_BASE;
-        char *fn_copy = palloc_get_page(strlen(file_name) + 1);
+        char *fn_copy = palloc_get_page(PAL_ZERO);
          if (fn_copy == NULL) {
            palloc_free_page(kpage);
-           palloc_free_page(fn_copy);
            return false;
          }
-        strlcpy (fn_copy, file_name, strlen(file_name) + 1);
+        strlcpy (fn_copy, file_name, PGSIZE);
 
         int argc = 0;
         char *t;
         char *temp = strtok_r(fn_copy, " ", &t);
         
         while (temp != NULL) {
-          *esp = (char*)*esp - (strlen(temp) - 1);
-          if (esp < 0) {
+          *esp = (char*)*esp - (strlen(temp) + 1);
+          if ((uintptr_t)*esp < (uintptr_t)PHYS_BASE - PGSIZE) {
             palloc_free_page(kpage);
             palloc_free_page(fn_copy);
             return false;
           }
           memcpy(*esp, temp, strlen(temp) + 1);
-          argv[argc] = *esp;
-          argc++;
+          argv[argc++] = *esp;
+          temp = strtok_r(NULL, " ", &t);
         }
         int padding = ((uintptr_t)*esp) % 4;
-        if (padding > 0) {
+        if (padding != 0) {
           *esp = (char *)*esp - padding;
-          if (esp < 0) {
+          if ((uintptr_t)*esp < (uintptr_t)PHYS_BASE - PGSIZE) {
             palloc_free_page(kpage);
-            palloc_free_page(argv);
             palloc_free_page(fn_copy);
             return false;
           }
-          memset((uint8_t *)(*esp) - padding, 0, padding);
+          memset(*esp, 0, padding);
         }
-        *esp = sizeof(char*);
-        *((char **)(*esp)) = NULL;
+        *esp = (uint8_t *) *esp - sizeof(char*);
+        *(char **)*esp = NULL;
         for (int i = argc - 1; i >= 0; i--) {
           *esp = (char *)*esp -  sizeof(char*);
-          if (esp < 0) {
+          if ((uintptr_t)*esp < (uintptr_t)PHYS_BASE - PGSIZE) {
             palloc_free_page(kpage);
-            palloc_free_page(argv);
             palloc_free_page(fn_copy);
             return false;
           }
@@ -495,31 +493,27 @@ static bool setup_stack(void **esp, const char *file_name) {
         }
         char** argv_start = (char **) *esp;
         *esp = (char *)*esp - sizeof(char **);
-        if (esp < 0) {
+        if ((uintptr_t)*esp < (uintptr_t)PHYS_BASE - PGSIZE) {
           palloc_free_page(kpage);
-          palloc_free_page(argv);
           palloc_free_page(fn_copy);
           return false;
         }
         *((char ***)(*esp)) = argv_start;
         *esp = (char *)*esp - sizeof(int);
-        if (esp < 0) {
+        if ((uintptr_t)*esp < (uintptr_t)PHYS_BASE - PGSIZE) {
           palloc_free_page(kpage);
-          palloc_free_page(argv);
           palloc_free_page(fn_copy);
           return false;
         }
         *(int*) *esp = argc;
         *esp = (char *)*esp - sizeof(void*);
-        if (esp < 0) {
+        if ((uintptr_t)*esp < (uintptr_t)PHYS_BASE - PGSIZE) {
           palloc_free_page(kpage);
-          palloc_free_page(argv);
           palloc_free_page(fn_copy);
           return false;
         }
         *(void **) *esp = NULL;
-        hex_dump((uintptr_t) esp, esp, (uintptr_t) PHYS_BASE - (uintptr_t) esp, true);
-        palloc_free_page(argv);
+        hex_dump((uintptr_t) *esp, *esp, (uintptr_t) PHYS_BASE - (uintptr_t) *esp, true);
         palloc_free_page(fn_copy);
     }
     else
