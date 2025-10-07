@@ -451,6 +451,7 @@ static bool setup_stack(void **esp, const char *file_name) {
         char *fn_copy = palloc_get_page(PAL_ZERO);
         if (fn_copy == NULL) {
           palloc_free_page(kpage);
+          palloc_free_page(fn_copy);
           return false;
         }
         strlcpy (fn_copy, file_name, strlen(file_name) + 1);
@@ -463,16 +464,66 @@ static bool setup_stack(void **esp, const char *file_name) {
           *esp -= strlen(temp) + 1;
           if (esp < 0) {
             palloc_free_page(kpage);
+            palloc_free_page(fn_copy);
             return false;
           }
           memcpy(*esp, temp, strlen(temp) + 1);
           argv[argc] = esp;
           argc++;
         }
-
+        int padding = ((uintptr_t)*esp) % 4;
+        if (padding > 0) {
+          esp -= padding;
+          if (esp < 0) {
+            palloc_free_page(kpage);
+            palloc_free_page(argv);
+            palloc_free_page(fn_copy);
+            return false;
+          }
+          memset((uint8_t *)(*esp) - padding, 0, padding);
+        }
+        *esp -= sizeof(char*);
+        *((char **)(*esp)) = NULL;
+        for (int i = argc - 1; i >= 0; i--) {
+          *esp -= sizeof(char*);
+          if (esp < 0) {
+            palloc_free_page(kpage);
+            palloc_free_page(argv);
+            palloc_free_page(fn_copy);
+            return false;
+          }
+          *(char**) *esp = NULL;
+        }
+        char** argv_start = (char **) *esp;
+        *esp -= sizeof(char **);
+        if (esp < 0) {
+          palloc_free_page(kpage);
+          palloc_free_page(argv);
+          palloc_free_page(fn_copy);
+          return false;
+        }
+        *((char ***)(*esp)) = argv_start;
+        *esp -= sizeof(int);
+        if (esp < 0) {
+          palloc_free_page(kpage);
+          palloc_free_page(argv);
+          palloc_free_page(fn_copy);
+          return false;
+        }
+        *(int*) *esp = argc;
+        *esp -= sizeof(void*);
+        if (esp < 0) {
+          palloc_free_page(kpage);
+          palloc_free_page(argv);
+          palloc_free_page(fn_copy);
+          return false;
+        }
+        *(void **) *esp = NULL;
+        palloc_free_page(argv);
+        palloc_free_page(fn_copy);
+      }
       else
         palloc_free_page(kpage);
-    }
     return success;
 }
 
