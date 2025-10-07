@@ -37,10 +37,10 @@ tid_t process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
-  /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
-  if (tid == TID_ERROR)
+  if (tid == TID_ERROR) {
     palloc_free_page (fn_copy);
+  }
   return tid;
 }
 
@@ -215,7 +215,7 @@ bool load (const char *file_name, void (**eip) (void), void **esp)
   process_activate ();
 
   char file_name_copy[PGSIZE]; //palloc this
-  strlcpy (file_name_copy, file_name, sizeof file_name_copy); //sizeof is going to be the size of the pointer.  use strlen + 1
+  strlcpy (file_name_copy, file_name, strlen(file_name) + 1); //sizeof is going to be the size of the pointer.  use strlen + 1
   char *ret_ptr;
   char *prog_name = strtok_r (file_name_copy, " ", &ret_ptr);
 
@@ -424,75 +424,14 @@ static bool setup_stack(void **esp, const char *file_name) {
     bool success = false;
 
     kpage = palloc_get_page(PAL_USER | PAL_ZERO);
-    if (kpage == NULL) return false;
-
-    success = install_page(((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
-    if (!success) {
+    if (kpage != NULL) {
+      success = install_page((uint8_t *) PHYS_BASE - PGSIZE, kpage, true);
+      if (success) 
+        *esp = PHYS_BASE;
+      else
         palloc_free_page(kpage);
-        return false;
     }
-
-    *esp = PHYS_BASE;
-
-    // Make a modifiable copy
-    char *cmdline_copy = malloc(strlen(file_name) + 1); //maybe should be palloc
-    if (cmdline_copy == NULL) return false;
-    strlcpy(cmdline_copy, file_name, strlen(file_name) + 1);
-
-    // First pass: count argc
-    int argc = 0;
-    char *token, *save_ptr;
-    for (token = strtok_r(cmdline_copy, " ", &save_ptr); token != NULL;
-         token = strtok_r(NULL, " ", &save_ptr))
-        argc++;
-
-    // Re-copy and second pass: push strings
-    strlcpy(cmdline_copy, file_name, strlen(file_name) + 1);
-    char *arg_address[128]; //#define this
-    int i = 0;
-    for (token = strtok_r(cmdline_copy, " ", &save_ptr); token != NULL;
-         token = strtok_r(NULL, " ", &save_ptr)) {
-        int len = strlen(token) + 1;
-        *esp = (uint8_t *) *esp - len;
-        memcpy(*esp, token, len);
-        arg_address[i++] = *esp;
-    }
-
-    // Word align
-    uintptr_t misalign = (uintptr_t)(*esp) % 4;
-    if (misalign) {
-        *esp = (uint8_t *) *esp - misalign;
-        memset(*esp, 0, misalign);
-    }
-
-    // Null sentinel
-    *esp = (uint8_t *) *esp - sizeof(char *);
-    *(char **)(*esp) = NULL;
-
-    // Push addresses
-    for (i = argc - 1; i >= 0; i--) {
-        *esp = (uint8_t *) *esp - sizeof(char *);
-        *(char **)(*esp) = arg_address[i];
-    }
-
-    // Push argv pointer
-    char **argv_start = *esp;
-    *esp = (uint8_t *) *esp - sizeof(char **);
-    *(char ***) *esp = argv_start;
-
-    // Push argc
-    *esp = (uint8_t *) *esp - sizeof(int);
-    *(int *)(*esp) = argc;
-
-    // Fake return address
-    *esp = (uint8_t *) *esp - sizeof(void *);
-    *(void **)(*esp) = NULL;
-
-    // Debug dump
-    hex_dump((uintptr_t)*esp, *esp, (uintptr_t)PHYS_BASE - (uintptr_t)*esp, true);
-
-    free(cmdline_copy);
-    return true;
+    return success;
 }
 
 
