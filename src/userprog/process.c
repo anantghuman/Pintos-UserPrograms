@@ -32,12 +32,12 @@ tid_t process_execute (const char *file_name)
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
-  fn_copy = palloc_get_page (0);
+  fn_copy = palloc_get_page (PAL_ZERO);
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
-  char *name = palloc_get_page (0);
+  char *name = palloc_get_page (PAL_ZERO);
   if (name == NULL)
     {
       palloc_free_page (fn_copy);
@@ -225,7 +225,7 @@ bool load (const char *file_name, void (**eip) (void), void **esp)
     goto done;
   process_activate ();
 
-  char *name = palloc_get_page (0);
+  char *name = palloc_get_page (PAL_ZERO);
   if (name == NULL)
     {
       file_close (file);
@@ -441,12 +441,35 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
 static bool setup_stack(void **esp, const char *file_name) {
     uint8_t *kpage;
     bool success = false;
+    char *argv[MAX_ARGS];
 
     kpage = palloc_get_page(PAL_USER | PAL_ZERO);
     if (kpage != NULL) {
       success = install_page((uint8_t *) PHYS_BASE - PGSIZE, kpage, true);
       if (success) 
         *esp = PHYS_BASE;
+        char *fn_copy = palloc_get_page(PAL_ZERO);
+        if (fn_copy == NULL) {
+          palloc_free_page(kpage);
+          return false;
+        }
+        strlcpy (fn_copy, file_name, strlen(file_name) + 1);
+
+        int argc = 0;
+        char *t;
+        char *temp = strtok_r(fn_copy, " ", &t);
+        
+        while (temp != NULL) {
+          *esp -= strlen(temp) + 1;
+          if (esp < 0) {
+            palloc_free_page(kpage);
+            return false;
+          }
+          memcpy(*esp, temp, strlen(temp) + 1);
+          argv[argc] = esp;
+          argc++;
+        }
+
       else
         palloc_free_page(kpage);
     }
