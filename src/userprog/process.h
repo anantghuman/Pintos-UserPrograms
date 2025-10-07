@@ -1,6 +1,6 @@
 #ifndef USERPROG_PROCESS_H
 #define USERPROG_PROCESS_H
-#define MAX_ARGS 128
+#define MAX_ARGS 64
 
 #include "threads/thread.h"
 

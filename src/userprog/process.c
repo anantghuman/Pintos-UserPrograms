@@ -48,7 +48,6 @@ tid_t process_execute (const char *file_name)
   char *n = strtok_r (name, " ", &temp);
 
   tid = thread_create (n, PRI_DEFAULT, start_process, fn_copy);
-  palloc_free_page(name);
   if (tid == TID_ERROR) {
     palloc_free_page (fn_copy);
   }
