@@ -32,12 +32,12 @@ tid_t process_execute (const char *file_name)
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
-  fn_copy = palloc_get_page (PAL_ZERO);
+  fn_copy = palloc_get_page (0);
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
-  char *name = palloc_get_page (PAL_ZERO);
+  char *name = palloc_get_page (0);
   if (name == NULL)
     {
       palloc_free_page (fn_copy);
@@ -45,10 +45,9 @@ tid_t process_execute (const char *file_name)
     }
   strlcpy (name, file_name, PGSIZE);
   char *temp;
-  name = strtok_r (name, " ", &temp);
+  char *n = strtok_r (name, " ", &temp);
 
-  tid = thread_create (name, PRI_DEFAULT, start_process, fn_copy);
-  palloc_free_page (name);
+  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR) {
     palloc_free_page (fn_copy);
   }
@@ -225,7 +224,7 @@ bool load (const char *file_name, void (**eip) (void), void **esp)
     goto done;
   process_activate ();
 
-  char *name = palloc_get_page (PAL_ZERO);
+  char *name = palloc_get_page (0);
   if (name == NULL)
     {
       file_close (file);
@@ -446,9 +445,9 @@ static bool setup_stack(void **esp, const char *file_name) {
     kpage = palloc_get_page(PAL_USER | PAL_ZERO);
     if (kpage != NULL) {
       success = install_page((uint8_t *) PHYS_BASE - PGSIZE, kpage, true);
-      if (success) 
+      if (success) {
         *esp = PHYS_BASE;
-        char *fn_copy = palloc_get_page(PAL_ZERO);
+        char *fn_copy = palloc_get_page (0);
         if (fn_copy == NULL) {
           palloc_free_page(kpage);
           palloc_free_page(fn_copy);
@@ -461,19 +460,19 @@ static bool setup_stack(void **esp, const char *file_name) {
         char *temp = strtok_r(fn_copy, " ", &t);
         
         while (temp != NULL) {
-          *esp -= strlen(temp) + 1;
+          *esp = (char*)*esp - (strlen(temp) - 1);
           if (esp < 0) {
             palloc_free_page(kpage);
             palloc_free_page(fn_copy);
             return false;
           }
           memcpy(*esp, temp, strlen(temp) + 1);
-          argv[argc] = esp;
+          argv[argc] = *esp;
           argc++;
         }
         int padding = ((uintptr_t)*esp) % 4;
         if (padding > 0) {
-          esp -= padding;
+          *esp = (char *)*esp - padding;
           if (esp < 0) {
             palloc_free_page(kpage);
             palloc_free_page(argv);
@@ -482,20 +481,20 @@ static bool setup_stack(void **esp, const char *file_name) {
           }
           memset((uint8_t *)(*esp) - padding, 0, padding);
         }
-        *esp -= sizeof(char*);
+        *esp = sizeof(char*);
         *((char **)(*esp)) = NULL;
         for (int i = argc - 1; i >= 0; i--) {
-          *esp -= sizeof(char*);
+          *esp = (char *)*esp -  sizeof(char*);
           if (esp < 0) {
             palloc_free_page(kpage);
             palloc_free_page(argv);
             palloc_free_page(fn_copy);
             return false;
           }
-          *(char**) *esp = NULL;
+          *(char**) *esp = argv[i];
         }
         char** argv_start = (char **) *esp;
-        *esp -= sizeof(char **);
+        *esp = (char *)*esp - sizeof(char **);
         if (esp < 0) {
           palloc_free_page(kpage);
           palloc_free_page(argv);
@@ -503,7 +502,7 @@ static bool setup_stack(void **esp, const char *file_name) {
           return false;
         }
         *((char ***)(*esp)) = argv_start;
-        *esp -= sizeof(int);
+        *esp = (char *)*esp - sizeof(int);
         if (esp < 0) {
           palloc_free_page(kpage);
           palloc_free_page(argv);
@@ -511,7 +510,7 @@ static bool setup_stack(void **esp, const char *file_name) {
           return false;
         }
         *(int*) *esp = argc;
-        *esp -= sizeof(void*);
+        *esp = (char *)*esp - sizeof(void*);
         if (esp < 0) {
           palloc_free_page(kpage);
           palloc_free_page(argv);
@@ -519,12 +518,14 @@ static bool setup_stack(void **esp, const char *file_name) {
           return false;
         }
         *(void **) *esp = NULL;
+        hex_dump((uintptr_t) *esp, *esp, (uintptr_t) PHYS_BASE - (uintptr_t) *esp, true);
         palloc_free_page(argv);
         palloc_free_page(fn_copy);
-      }
-      else
-        palloc_free_page(kpage);
-    return success;
+    }
+    else
+      palloc_free_page(kpage);
+  }
+  return success;
 }
 
 
