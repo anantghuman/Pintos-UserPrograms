@@ -37,7 +37,18 @@ tid_t process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  char *name = palloc_get_page (0);
+  if (name == NULL)
+    {
+      palloc_free_page (fn_copy);
+      return TID_ERROR;
+    }
+  strlcpy (name, file_name, PGSIZE);
+  char *temp;
+  name = strtok_r (name, " ", &temp);
+
+  tid = thread_create (name, PRI_DEFAULT, start_process, fn_copy);
+  palloc_free_page (name);
   if (tid == TID_ERROR) {
     palloc_free_page (fn_copy);
   }
@@ -214,18 +225,26 @@ bool load (const char *file_name, void (**eip) (void), void **esp)
     goto done;
   process_activate ();
 
-  char file_name_copy[PGSIZE]; //palloc this
-  strlcpy (file_name_copy, file_name, strlen(file_name) + 1); //sizeof is going to be the size of the pointer.  use strlen + 1
-  char *ret_ptr;
-  char *prog_name = strtok_r (file_name_copy, " ", &ret_ptr);
+  char *name = palloc_get_page (0);
+  if (name == NULL)
+    {
+      file_close (file);
+      return false;
+    }
+  strlcpy (name, file_name, strlen(file_name) + 1);
+  
+  char *temp;
+  name = strtok_r(name, " ", &temp);
 
   /* Open executable file. */
-  file = filesys_open (prog_name);
+  file = filesys_open (name);
   if (file == NULL)
     {
-      printf ("load: %s: open failed\n", file_name);
+      palloc_free_page(name);
+      printf ("load: %s: open failed\n", name);
       goto done;
     }
+  palloc_free_page (name);
 
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr ||
