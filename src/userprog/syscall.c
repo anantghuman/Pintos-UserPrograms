@@ -24,32 +24,36 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       break;
     case SYS_EXEC:
       // exec()
+      f->eax = exec(*(int*)f->esp + 1);
       break;
     case SYS_WAIT:
-      wait(*(int *)f->esp + 1);
+      f->eax = wait(*(int *)f->esp + 1);
       break;
     case SYS_CREATE:
+      f->eax = create(*(int*)f->esp + 1, *(int*)f->esp + 2);
       break;
     case SYS_REMOVE:
+      f->eax = remove(*(int*)f->esp + 1);
       break;
     case SYS_OPEN:
+      f->eax = open(*(int*)f->esp + 1);
       break;
     case SYS_FILESIZE:
-      filesize(*(int *)f->esp + 1);
+      f->eax = filesize(*(int *)f->esp + 1);
       break;
     case SYS_READ:
-      read(*(int *)f->esp + 1, *(int *)f->esp + 2, *(int *)f->esp + 3);
+      f->eax = read(*(int *)f->esp + 1, *(int *)f->esp + 2, *(int *)f->esp + 3);
       break;
     case SYS_WRITE:
-      write(*(int *)f->esp + 1, *(int *)f->esp + 2, *(int *)f->esp + 3);
+      f->eax = write(*(int *)f->esp + 1, *(int *)f->esp + 2, *(int *)f->esp + 3);
       break;
     case SYS_SEEK:
-      seek(*(int *)f->esp + 1, *(int *)f->esp + 2);
+      f->eax = seek(*(int *)f->esp + 1, *(int *)f->esp + 2);
     case SYS_TELL:
-      tell(*(int *)f->esp + 1);
+      f->eax = tell(*(int *)f->esp + 1);
       break;
     case SYS_CLOSE:
-      close(*(int *)f->esp + 1);
+      f->eax = close(*(int *)f->esp + 1);
       break;
   }
   thread_exit ();
