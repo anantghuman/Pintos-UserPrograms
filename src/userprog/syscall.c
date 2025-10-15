@@ -16,6 +16,19 @@ void syscall_init (void)
   lock_init (&file_lock);
 }
 
+struct file_descriptor *find_filept(int fd) {
+  struct thread *temp = thread_current();
+  struct list_elem *i = list_begin(&temp->fd_table);
+  while (i != list_end(&temp->fd_table)) {
+    struct file_descriptor *file_desc = list_entry(i, struct file_descriptor, file_elem);
+    if (file_desc->fd == fd) {
+      return file_desc;
+    }
+    i = list_next(i);
+  }
+  return NULL;
+}
+
 static void syscall_handler (struct intr_frame *f UNUSED)
 {
   printf ("system call!\n");
@@ -27,7 +40,6 @@ static void syscall_handler (struct intr_frame *f UNUSED)
     case SYS_HALT:
       shutdown_power_off();
       break;
-    // check bounds for these
     case SYS_EXIT:
       temp = (int *) f->esp + 1;
       if (pagedir_get_page(thread_current()->pagedir, temp) == NULL) {
@@ -161,10 +173,16 @@ static void syscall_handler (struct intr_frame *f UNUSED)
     case SYS_CLOSE:
       lock_acquire(&file_lock);
       temp = (int*)(f->esp) + 1;
-      if (pagedir_get_page(thread_current()->pagedir, temp) == NULL) {
+      if (!temp && pagedir_get_page(thread_current()->pagedir, temp) == NULL) {
         thread_exit();
       }
-      f->eax = file_close(*temp);
+      struct file_descriptor *file_desc = find_filept(*temp);
+      if (!file_desc) {
+        lock_release(&file_lock);
+        break;
+      }
+      file_close(file_desc->file);
+      list_remove(&file_desc->file_elem);
       lock_release(&file_lock);
       break;
   }
