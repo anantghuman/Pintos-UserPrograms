@@ -54,13 +54,14 @@
 
 void halt (void)
 {
-  shutdown_power_off();
+  syscall0 (SYS_HALT);
+  NOT_REACHED ();
 }
 
 void exit (int status)
 {
-  thread_current ()->thread_status = status; 
-  thread_exit ();
+  syscall1 (SYS_EXIT, status);
+  NOT_REACHED();
 }
 
 pid_t exec (const char *file) { return (pid_t) syscall1 (SYS_EXEC, file); }

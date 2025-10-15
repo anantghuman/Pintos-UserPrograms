@@ -76,6 +76,7 @@ typedef int tid_t;
    value, triggering the assertion.  (So don't add elements below
    THREAD_MAGIC.)
 */
+
 /* The `elem' member has a dual purpose.  It can be an element in
    the run queue (thread.c), or it can be an element in a
    semaphore wait list (synch.c).  It can be used these two ways
@@ -94,6 +95,7 @@ struct thread
 
   /* Shared between thread.c and synch.c. */
   struct list_elem elem; /* List element. */
+  struct list fd_table;
 
 #ifdef USERPROG
   /* Owned by userprog/process.c. */
@@ -103,6 +105,12 @@ struct thread
   /* Owned by thread.c. */
   unsigned magic; /* Detects stack overflow. */
 };
+
+struct file_descriptor {
+   int fd;
+   struct file *file;
+   struct list_elem file_elem;
+}
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
