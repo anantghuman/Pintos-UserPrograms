@@ -32,7 +32,7 @@ struct file_descriptor *find_filept(int fd) {
 static void syscall_handler (struct intr_frame *f UNUSED)
 {
   printf ("system call!\n");
-  int syscall_number = f->esp;
+  int syscall_number = *((int*)f->esp);
   int *temp;
   int *temp2;
   int *temp3;
@@ -40,6 +40,7 @@ static void syscall_handler (struct intr_frame *f UNUSED)
     case SYS_HALT:
       shutdown_power_off();
       break;
+
     case SYS_EXIT:
       temp = (int *) f->esp + 1;
       if (!temp || pagedir_get_page(thread_current()->pagedir, temp) == NULL) {
@@ -50,53 +51,53 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       break;
 
     case SYS_EXEC:
-      temp = *((int*)f->esp) + 1;
-      if (!temp || pagedir_get_page(thread_current()->pagedir, temp) == NULL) {
+      temp = (int*) f->esp + 1;
+      if (!temp || pagedir_get_page(thread_current()->pagedir, (const char*) *temp) == NULL) {
         thread_exit();
       }
       lock_acquire(&file_lock);
-      f->eax = process_execute((const char*)temp);
+      f->eax = process_execute((const char*) *temp);
       lock_release(&file_lock);
       break;
 
     case SYS_WAIT:
-      temp = ((int*)(f->esp) + 1);
-      if (!temp || pagedir_get_page(thread_current()->pagedir, temp) == NULL) {
+      temp = (int*) f->esp + 1;
+      if (!temp || pagedir_get_page(thread_current()->pagedir, (tid_t) *temp) == NULL) {
         thread_exit();
       }
       f->eax = process_wait((tid_t) *temp);
       break;
 
     case SYS_CREATE:
-      temp = *((int*)f->esp) + 1;
+      temp = (int*)f->esp + 1;
       temp2 = (int*)f->esp + 2;
-      if (!temp || pagedir_get_page(thread_current()->pagedir, temp) == NULL) {
+      if (!temp || pagedir_get_page(thread_current()->pagedir, (const char*) *temp) == NULL) {
         thread_exit();
       }
-      if (!temp2 || pagedir_get_page(thread_current()->pagedir, temp2) == NULL) {
+      if (!temp2) {
         thread_exit();
       }
       lock_acquire(&file_lock);
-      f->eax = filesys_create((const char*) temp, (unsigned)*temp2);
+      f->eax = filesys_create((const char*)*temp, (unsigned)*temp2);
       lock_release(&file_lock);
       break;
 
     case SYS_REMOVE:
-      temp = *(((int*)f->esp) + 1);
-      if (!temp || pagedir_get_page(thread_current()->pagedir, temp) == NULL) {
+      temp = (int*) f->esp + 1;
+      if (!temp || pagedir_get_page(thread_current()->pagedir, (const char*) *temp) == NULL) {
         thread_exit();
       }
       lock_acquire(&file_lock);
-      f->eax = filesys_remove((const char*)temp);
+      f->eax = filesys_remove((const char*) *temp);
       lock_release(&file_lock);
       break;
 
     case SYS_OPEN:
-      temp = (const char*)*((int*)f->esp + 1);
-      if (!temp || pagedir_get_page(thread_current()->pagedir, temp) == NULL) {
+      temp = (int*) f->esp + 1;
+      if (!temp || pagedir_get_page(thread_current()->pagedir, (const char*) *temp) == NULL) {
         thread_exit();
       }
-      struct file *file = file_open(temp);
+      struct file *file = file_open((const char*) *temp);
       struct file_descriptor *file_desc;
       file_desc->num_fd = thread_current()->current_fd;
       thread_current ()->current_fd++;
@@ -107,20 +108,20 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       break;
 
     case SYS_FILESIZE:
-      temp = (int*)f->esp + 1;
-      if (!temp || pagedir_get_page(thread_current()->pagedir, temp) == NULL) {
+      temp = (int*) f->esp + 1;
+      if (!temp || pagedir_get_page(thread_current()->pagedir, *temp) == NULL) {
         thread_exit();
       }
-      struct file *file = find_filept (*temp)->file;
       lock_acquire(&file_lock);
+      struct file *file = find_filept (*temp)->file;
       f->eax = file_length(file);
       lock_release(&file_lock);
       break;
       
     case SYS_READ:
-      temp = (int*)f->esp + 1;
-      temp2 = *((int*)f->esp + 2);
-      temp3 = ((int*)f->esp + 3);
+      temp = (int*) f->esp + 1;
+      temp2 = (int*) f->esp + 2;
+      temp3 = (int*) f->esp + 3;
       if (!temp || pagedir_get_page(thread_current()->pagedir, temp) == NULL) {
         thread_exit();
       }
