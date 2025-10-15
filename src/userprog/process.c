@@ -96,6 +96,7 @@ static void start_process (void *file_name_)
    does nothing. */
 int process_wait (tid_t child_tid UNUSED) {
   while (true);
+  
 }
 
 /* Free the current process's resources. */
