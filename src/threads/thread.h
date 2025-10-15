@@ -96,6 +96,7 @@ struct thread
   /* Shared between thread.c and synch.c. */
   struct list_elem elem; /* List element. */
   struct list fd_table;
+  int current_fd;
 
 #ifdef USERPROG
   /* Owned by userprog/process.c. */
@@ -107,10 +108,10 @@ struct thread
 };
 
 struct file_descriptor {
-   int fd;
+   int num_fd;
    struct file *file;
    struct list_elem file_elem;
-}
+};
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
