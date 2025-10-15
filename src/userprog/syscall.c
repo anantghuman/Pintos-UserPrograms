@@ -20,6 +20,9 @@ static void syscall_handler (struct intr_frame *f UNUSED)
 {
   printf ("system call!\n");
   int syscall_number = f->esp;
+  int *temp;
+  int *temp2;
+  int *temp3;
   switch (syscall_number) {
     case SYS_HALT:
       halt();
@@ -29,65 +32,62 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       break;
     case SYS_EXEC:
       lock_acquire(&file_lock);
-      int *temp = ((int*)f->esp) + 1;
+      temp = (const char*)(((int*)f->esp) + 1);
       if (pagedir_get_page(thread_current()->pagedir, temp) == NULL) {
         thread_exit();
       }
-      f->eax = exec(*((int*)f->esp + 1));
+      f->eax = exec(temp);
       lock_release(&file_lock);
       break;
     case SYS_WAIT:
-      int *temp = f->esp + 1;
-      if (pagedir_get_page(thread_current()->pagedir, temp) == NULL) {
-        thread_exit();
-      }
-      f->eax = process_wait((tid_t)*temp);
+      temp = (pid_t*)((int*)(f->esp) + 1);
+      f->eax = process_wait((tid_t) *temp);
       break;
     case SYS_CREATE:
       lock_acquire(&file_lock);
-      int *temp = ((int*)f->esp) + 1;
-      int *temp2 = ((int*)f->esp) + 2;
+      temp = (const char*) (((int*)f->esp) + 1);
+      temp2 = (unsigned) (((int*)f->esp) + 2);
       if (pagedir_get_page(thread_current()->pagedir, temp) == NULL) {
         thread_exit();
       }
       if (pagedir_get_page(thread_current()->pagedir, temp2) == NULL) {
         thread_exit();
       }
-      f->eax = filesys_create(*temp, *temp2);
+      f->eax = filesys_create(temp, *temp2);
       lock_release(&file_lock);
       break;
     case SYS_REMOVE:
-      lock_acquire(&file_lock);
-      int *temp = ((int*)f->esp) + 1;
+      temp = (const char*) (((int*)f->esp) + 1);
       if (pagedir_get_page(thread_current()->pagedir, temp) == NULL) {
         thread_exit();
       }
-      f->eax = remove(*temp);
+      lock_acquire(&file_lock);
+      f->eax = filesys_remove(temp);
       lock_release(&file_lock);
       break;
     case SYS_OPEN:
       lock_acquire(&file_lock);
-      int *temp = f->esp + 1;
+      temp = (const char*)(int*)f->esp + 1;
       if (pagedir_get_page(thread_current()->pagedir, temp) == NULL) {
         thread_exit();
       }
-      f->eax = open(*((int*)f->esp + 1));
+      f->eax = open(temp);
       lock_release(&file_lock);
       break;
     case SYS_FILESIZE:
       lock_acquire(&file_lock);
-      int *temp = f->esp + 1;
+      temp = (int*)f->esp + 1;
       if (pagedir_get_page(thread_current()->pagedir, temp) == NULL) {
         thread_exit();
       }
-      f->eax = filesize(*((int *)f->esp + 1));
+      f->eax = filesize(*temp);
       lock_release(&file_lock);
       break;
     case SYS_READ:
       lock_acquire(&file_lock);
-      int *temp = f->esp + 1;
-      int *temp2 = f->esp + 2;
-      int *temp3 = f->esp + 3;
+      temp = (int*)f->esp + 1;
+      temp2 = (void*)((int*)f->esp + 2);
+      temp3 = (unsigned*)((int*)f->esp + 3);
       if (pagedir_get_page(thread_current()->pagedir, temp) == NULL) {
         thread_exit();
       }
@@ -97,14 +97,14 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       if (pagedir_get_page(thread_current()->pagedir, temp3) == NULL) {
         thread_exit();
       }
-      f->eax = read(*((int *)f->esp + 1), *((int *)f->esp + 2), *((int *)f->esp + 3));
+      f->eax = read(*temp, temp2, *temp3);
       lock_release(&file_lock);
       break;
     case SYS_WRITE:
       lock_acquire(&file_lock);
-      int *temp = f->esp + 1;
-      int *temp2 = f->esp + 2;
-      int *temp3 = f->esp + 3;
+      temp = (int*)f->esp + 1;
+      temp2 = (const void*)((int*) f->esp + 2);
+      temp3 = (unsigned*)((int*) f->esp + 3);
       if (pagedir_get_page(thread_current()->pagedir, temp) == NULL) {
         thread_exit();
       }
@@ -114,45 +114,37 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       if (pagedir_get_page(thread_current()->pagedir, temp3) == NULL) {
         thread_exit();
       }
-      f->eax = write(*((int *)f->esp + 1), *((int *)f->esp + 2), *((int *)f->esp + 3));
+      f->eax = write(*temp, temp2, *temp3);
       lock_release(&file_lock);
       break;
     case SYS_SEEK:
       lock_acquire(&file_lock);
-      int *temp = f->esp + 1;
-      int *temp2 = f->esp + 2;
+      temp = (int*)(f->esp) + 1;
+      temp2 = (unsigned*)(int*)(f->esp) + 2;
       if (pagedir_get_page(thread_current()->pagedir, temp) == NULL) {
         thread_exit();
       }
       if (pagedir_get_page(thread_current()->pagedir, temp2) == NULL) {
         thread_exit();
       }
-      f->eax = seek(*((int *)f->esp + 1), *((int *)f->esp + 2));
+      f->eax = seek(*temp, *temp2);
       lock_release(&file_lock);
     case SYS_TELL:
       lock_acquire(&file_lock);
-      int *temp = f->esp + 1;
-      int *temp2 = f->esp + 2;
+      temp = (int*)(f->esp) + 1;
       if (pagedir_get_page(thread_current()->pagedir, temp) == NULL) {
         thread_exit();
       }
-      if (pagedir_get_page(thread_current()->pagedir, temp2) == NULL) {
-        thread_exit();
-      }
-      f->eax = tell(*((int *)f->esp + 1));
+      f->eax = tell(*temp);
       lock_release(&file_lock);
       break;
     case SYS_CLOSE:
       lock_acquire(&file_lock);
-      int *temp = f->esp + 1;
-      int *temp2 = f->esp + 2;
+      temp = (int*)(f->esp) + 1;
       if (pagedir_get_page(thread_current()->pagedir, temp) == NULL) {
         thread_exit();
       }
-      if (pagedir_get_page(thread_current()->pagedir, temp2) == NULL) {
-        thread_exit();
-      }
-      f->eax = close(*((int *)f->esp + 1));
+      f->eax = close(*temp);
       lock_release(&file_lock);
       break;
   }
