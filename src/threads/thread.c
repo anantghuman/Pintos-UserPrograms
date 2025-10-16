@@ -101,6 +101,9 @@ void thread_init (void)
   initial_thread->tid = allocate_tid ();
   list_init(&initial_thread->fd_table);
   initial_thread->current_fd = 2;
+  list_init(&initial_thread->children);
+  initial_thread->exit_stat = -1;
+  initial_thread->child_ptr = NULL;
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.

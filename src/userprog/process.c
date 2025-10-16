@@ -52,6 +52,12 @@ tid_t process_execute (const char *file_name)
   if (tid == TID_ERROR) {
     palloc_free_page (fn_copy);
   }
+  struct child_process *c = malloc(sizeof(*c));
+  c->pid = TID_ERROR;
+  c->waited = false;
+  c->exit_stat = -1;
+  sema_init(&c->wait, 0);
+  list_push_back(&thread_current()->children, &c->child_elem);
   return tid;
 }
 
@@ -95,7 +101,24 @@ static void start_process (void *file_name_)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int process_wait (tid_t child_tid UNUSED) {
-  while (true);
+  struct thread *current = thread_current();
+  struct list_elem *ce = list_begin(&current->children);
+
+  while(ce != list_end(&current->children)) {
+    struct child_process *c = list_entry(ce, struct child_process, child_elem);
+      if (c->pid == child_tid) {
+          if (c->waited) {
+            return -1;
+          }
+          sema_down(&c->wait);
+          int status = c->exit_stat;
+          list_remove(c);
+          free(c);
+          return status;
+      }
+    c = list_next(c);
+    return -1;
+  }
   
 }
 

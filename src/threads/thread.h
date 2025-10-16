@@ -4,6 +4,9 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include <synch.h>
+#include "lib/kernel/list.h"
+#include "threads/synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -98,6 +101,10 @@ struct thread
   struct list fd_table;
   int current_fd;
 
+  struct list children;
+  struct child_process *child_ptr;
+  int exit_stat;
+
 #ifdef USERPROG
   /* Owned by userprog/process.c. */
   uint32_t *pagedir; /* Page directory. */
@@ -113,7 +120,13 @@ struct file_descriptor {
    struct list_elem file_elem;
 };
 
-
+struct child_process {
+   __pid_t pid;
+   int exit_stat;
+   bool waited;
+   struct semaphore wait;
+   struct list_elem child_elem;
+};
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
