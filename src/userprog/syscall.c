@@ -17,6 +17,16 @@ void syscall_init (void)
   lock_init (&file_lock);
 }
 
+bool check_ptr (const void *ptr, struct intr_frame *f) 
+{
+  if (ptr == NULL || is_user_vaddr (ptr) || pagedir_get_page (thread_current()->pagedir, ptr) == NULL)
+  {
+    thread_current()->exit_stat = -1;
+    printf("%s: exit(%d)\n", thread_current()->name);
+    thread_exit();
+  }
+}
+
 struct file_descriptor *find_filept(int fd) {
   struct thread *temp = thread_current();
   struct list_elem *i = list_begin(&temp->fd_table);
@@ -32,67 +42,68 @@ struct file_descriptor *find_filept(int fd) {
 
 static void syscall_handler (struct intr_frame *f UNUSED)
 {
-  //printf ("system call!\n");
+  // printf ("system call!\n");
+  check_ptr (f->esp, f);
   int syscall_number = *((int*)f->esp);
-  int *temp;
-  int *temp2;
-  int *temp3;
   struct file_descriptor *file_desc;
   switch (syscall_number) {
     case SYS_HALT:
       shutdown_power_off();
       break;
 
-    case SYS_EXIT:
-      temp = (int *) f->esp + 1;
-      if (!temp || pagedir_get_page(thread_current()->pagedir, temp) == NULL) {
-        thread_current()->exit_stat = -1;
-        thread_exit();
-      }
-      int status = *((int*) f->esp + 1);
-      thread_current()->exit_stat = *temp;
-      printf("%s: exit(%d)\n", thread_current()->name, status);
+    case SYS_EXIT: {
+      int* temp = (int *) f->esp + 1;
+      check_ptr (temp, f);
+      thread_current()->exit_stat = *temp;  
       thread_exit();
       break;
-
-    case SYS_EXEC:
-      temp = (int*) f->esp + 1;
-      if (!*temp || !is_user_vaddr(*temp) || pagedir_get_page(thread_current()->pagedir, (const char*) *temp) == NULL) {
-        thread_current() ->status = -1;
+    }
+    case SYS_EXEC: {
+      char **temp = (char **)(int*) f->esp + 1;
+      check_ptr(temp, f);
+      char *executable = *temp;
+      if (executable == '\n') {
+        thread_current()->exit_stat = -1;
+        printf("%s: exit(%d)\n", thread_current()->name);
         thread_exit();
       }
+      while (executable != '\n') {
+        check_ptr(t, f);
+        executable++;
+      }
+      
       lock_acquire(&file_lock);
       f->eax = process_execute((const char*) *temp);
       lock_release(&file_lock);
       break;
-
-    case SYS_WAIT:
-      temp = (int*) f->esp + 1;
-      if (!temp) {
-        f->eax = -1;
-        break;
-      }
-      tid_t child_tid = *temp;
+    }
+    case SYS_WAIT: {
+      int *temp = (int*) f->esp + 1;
+      check_ptr(temp, f);
       f->eax = process_wait((tid_t) *temp);
       break;
-
-    case SYS_CREATE:
-      temp = (int*)f->esp + 1;
-      temp2 = (int*)f->esp + 2;
-      if (!temp || pagedir_get_page(thread_current()->pagedir, (const char*) *temp) == NULL) {
-        thread_current() ->status = -1;
+    }
+    case SYS_CREATE: {
+      char **temp = (char **)(int*)f->esp + 1;
+      int* temp2 = (int *) f->esp + 2;
+      check_ptr(temp, f);
+      char *file_name = *temp;
+      if (file_name == '\n') {
+        thread_current()->exit_stat = -1;
+        printf("%s: exit(%d)\n", thread_current()->name);
         thread_exit();
       }
-      if (!temp2) {
-        thread_exit();
+      while (file_name != '\n') {
+        check_ptr(file_name, f);
+        file_name++;
       }
       lock_acquire(&file_lock);
       f->eax = filesys_create((const char*)*temp, (unsigned)*temp2);
       lock_release(&file_lock);
       break;
-
+    }
     case SYS_REMOVE:
-      temp = (int*) f->esp + 1;
+      int *temp = (int*) f->esp + 1;
       if (!temp || pagedir_get_page(thread_current()->pagedir, (const char*) *temp) == NULL) {
         thread_current() ->status = -1;
         thread_exit();
@@ -118,6 +129,7 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       file_desc = malloc(sizeof(*file_desc));
       file_desc->num_fd = thread_current()->current_fd++;
       file_desc->file = file;
+      f->eax = file_desc->num_fd;
       list_push_back(&thread_current()->fd_table, &file_desc->file_elem);
       f->eax = file_desc->num_fd;
       lock_release(&file_lock);
