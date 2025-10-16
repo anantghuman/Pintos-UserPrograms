@@ -4,7 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
-#include <synch.h>
+#include <threads/synch.h>
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -119,7 +119,7 @@ struct file_descriptor {
 };
 
 struct child_process {
-   __pid_t pid;
+   int32_t pid;
    int exit_stat;
    bool waited;
    struct semaphore wait;

@@ -9,6 +9,7 @@
         "ostream": "c",
         "sstream": "c",
         "stop_token": "c",
-        "streambuf": "c"
+        "streambuf": "c",
+        "synch.h": "c"
     }
 }

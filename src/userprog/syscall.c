@@ -5,6 +5,7 @@
 #include "threads/thread.h"
 #include "pagedir.h"
 #include "threads/synch.h"
+#include "threads/vaddr.h"
 
 struct lock file_lock;
 
@@ -36,6 +37,7 @@ static void syscall_handler (struct intr_frame *f UNUSED)
   int *temp;
   int *temp2;
   int *temp3;
+  struct file_descriptor *file_desc;
   switch (syscall_number) {
     case SYS_HALT:
       shutdown_power_off();
@@ -53,7 +55,7 @@ static void syscall_handler (struct intr_frame *f UNUSED)
 
     case SYS_EXEC:
       temp = (int*) f->esp + 1;
-      if (!temp || pagedir_get_page(thread_current()->pagedir, (const char*) *temp) == NULL) {
+      if (!*temp || !is_user_vaddr(*temp) || pagedir_get_page(thread_current()->pagedir, (const char*) *temp) == NULL) {
         thread_current() ->status = -1;
         thread_exit();
       }
@@ -64,10 +66,11 @@ static void syscall_handler (struct intr_frame *f UNUSED)
 
     case SYS_WAIT:
       temp = (int*) f->esp + 1;
-      if (!temp || pagedir_get_page(thread_current()->pagedir, (tid_t) *temp) == NULL) {
-        thread_current() ->status = -1;
-        thread_exit();
+      if (!temp) {
+        f->eax = -1;
+        break;
       }
+      tid_t child_tid = *temp;
       f->eax = process_wait((tid_t) *temp);
       break;
 
@@ -110,7 +113,7 @@ static void syscall_handler (struct intr_frame *f UNUSED)
         lock_release(&file_lock);
         thread_exit();
       }
-      struct file_descriptor *file_desc;
+      file_desc = malloc(sizeof(file_desc));
       file_desc->num_fd = thread_current()->current_fd;
       thread_current ()->current_fd++;
       file_desc->file = file;
@@ -121,7 +124,7 @@ static void syscall_handler (struct intr_frame *f UNUSED)
     case SYS_FILESIZE:
       temp = (int*) f->esp + 1;
       lock_acquire(&file_lock);
-      struct file_descriptor *file_desc = find_filept (*temp);
+      file_desc = find_filept (*temp);
       if (!file_desc) {
         f->eax = -1;
         lock_release(&file_lock);
@@ -143,7 +146,7 @@ static void syscall_handler (struct intr_frame *f UNUSED)
         thread_exit();
       }
       lock_acquire(&file_lock);
-      struct file_descriptor *file_desc = find_filept(*temp);
+      file_desc = find_filept(*temp);
       if (file_desc == NULL) {
         f->eax = -1;
         lock_release(&file_lock);
@@ -165,7 +168,7 @@ static void syscall_handler (struct intr_frame *f UNUSED)
         thread_exit();
       }
       lock_acquire(&file_lock);
-      struct file_descriptor *file_desc = find_filept(*temp);
+      file_desc = find_filept(*temp);
       if (file_desc == NULL) {
         f->eax = -1;
         lock_release(&file_lock);
@@ -186,7 +189,7 @@ static void syscall_handler (struct intr_frame *f UNUSED)
         thread_exit();
       }
       lock_acquire(&file_lock);
-      struct file_descriptor *file_desc = find_filept(*temp);
+      file_desc = find_filept(*temp);
       if (file_desc == NULL) {
         lock_release(&file_lock);
         thread_exit();
@@ -201,7 +204,7 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       //   thread_exit();
       // }
       lock_acquire(&file_lock);
-      struct file_descriptor *file_desc = find_filept(*temp);
+      file_desc = find_filept(*temp);
       if (file_desc == NULL) {
         f->eax = -1;
         lock_release(&file_lock);
@@ -216,16 +219,17 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       //   thread_exit();
       // }
       lock_acquire(&file_lock);
-      struct file_descriptor *file_desc = find_filept(*temp);
+      file_desc = find_filept(*temp);
       if (!file_desc) {
         lock_release(&file_lock);
         break;
       }
       file_close(file_desc->file);
       list_remove(&file_desc->file_elem);
+      free(file_desc);
       lock_release(&file_lock);
       break;
   }
-  thread_current()->status = -1;
-  thread_exit();
+  // thread_current()->status = -1;
+  // thread_exit();
 }

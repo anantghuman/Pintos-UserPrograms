@@ -59,7 +59,7 @@ tid_t process_execute (const char *file_name)
   sema_init(&c->wait, 0);
   list_push_back(&thread_current()->children, &c->child_elem);
   struct thread *child_t = match_thread_to_tid(tid);
-  if (child_t == NULL) {
+  if (child_t != NULL) {
     child_t->child_ptr = c;
   }
   return tid;
