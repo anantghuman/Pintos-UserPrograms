@@ -99,11 +99,6 @@ void thread_init (void)
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
-  list_init(&initial_thread->fd_table);
-  initial_thread->current_fd = 2;
-  list_init(&initial_thread->children);
-  initial_thread->exit_stat = -1;
-  initial_thread->child_ptr = NULL;
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -436,6 +431,12 @@ static void init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
+
+  list_init(&initial_thread->fd_table);
+  initial_thread->current_fd = 2;
+  list_init(&initial_thread->children);
+  initial_thread->exit_stat = -1;
+  initial_thread->child_ptr = NULL;
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);

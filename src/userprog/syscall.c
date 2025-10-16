@@ -32,7 +32,7 @@ struct file_descriptor *find_filept(int fd) {
 
 static void syscall_handler (struct intr_frame *f UNUSED)
 {
-  printf ("system call!\n");
+  //printf ("system call!\n");
   int syscall_number = *((int*)f->esp);
   int *temp;
   int *temp2;
@@ -49,7 +49,9 @@ static void syscall_handler (struct intr_frame *f UNUSED)
         thread_current()->exit_stat = -1;
         thread_exit();
       }
+      int status = *((int*) f->esp + 1);
       thread_current()->exit_stat = *temp;
+      printf("%s: exit(%d)\n", thread_current()->name, status);
       thread_exit();
       break;
 
@@ -111,13 +113,13 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       if (!file) {
         f->eax = -1;
         lock_release(&file_lock);
-        thread_exit();
+        break;
       }
-      file_desc = malloc(sizeof(file_desc));
-      file_desc->num_fd = thread_current()->current_fd;
-      thread_current ()->current_fd++;
+      file_desc = malloc(sizeof(*file_desc));
+      file_desc->num_fd = thread_current()->current_fd++;
       file_desc->file = file;
       list_push_back(&thread_current()->fd_table, &file_desc->file_elem);
+      f->eax = file_desc->num_fd;
       lock_release(&file_lock);
       break;
 
@@ -130,7 +132,7 @@ static void syscall_handler (struct intr_frame *f UNUSED)
         lock_release(&file_lock);
         thread_exit();
       }
-      f->eax = file_length(file);
+      f->eax = file_length(file_desc->file);
       lock_release(&file_lock);
       break;
       
@@ -205,12 +207,11 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       // }
       lock_acquire(&file_lock);
       file_desc = find_filept(*temp);
-      if (file_desc == NULL) {
+      if (file_desc) {
+        f->eax = file_tell(file_desc->file);
+      } else {
         f->eax = -1;
-        lock_release(&file_lock);
-        thread_exit();
       }
-      f->eax = file_tell(file_desc->file);
       lock_release(&file_lock);
       break;
     case SYS_CLOSE:
@@ -220,13 +221,11 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       // }
       lock_acquire(&file_lock);
       file_desc = find_filept(*temp);
-      if (!file_desc) {
-        lock_release(&file_lock);
-        break;
+      if (file_desc) {
+        file_close(file_desc->file);
+        list_remove(&file_desc->file_elem);
+        free(file_desc);
       }
-      file_close(file_desc->file);
-      list_remove(&file_desc->file_elem);
-      free(file_desc);
       lock_release(&file_lock);
       break;
   }
