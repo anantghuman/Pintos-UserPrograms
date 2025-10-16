@@ -44,9 +44,10 @@ static void syscall_handler (struct intr_frame *f UNUSED)
     case SYS_EXIT:
       temp = (int *) f->esp + 1;
       if (!temp || pagedir_get_page(thread_current()->pagedir, temp) == NULL) {
+        thread_current()->exit_stat = -1;
         thread_exit();
       }
-      thread_current()->status = temp;
+      thread_current()->exit_stat = *temp;
       thread_exit();
       break;
 

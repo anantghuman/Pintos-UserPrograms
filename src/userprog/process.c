@@ -53,11 +53,15 @@ tid_t process_execute (const char *file_name)
     palloc_free_page (fn_copy);
   }
   struct child_process *c = malloc(sizeof(*c));
-  c->pid = TID_ERROR;
+  c->pid = tid;
   c->waited = false;
   c->exit_stat = -1;
   sema_init(&c->wait, 0);
   list_push_back(&thread_current()->children, &c->child_elem);
+  struct thread *child_t = match_thread_to_tid(tid);
+  if (child_t == NULL) {
+    child_t->child_ptr = c;
+  }
   return tid;
 }
 
@@ -106,20 +110,20 @@ int process_wait (tid_t child_tid UNUSED) {
 
   while(ce != list_end(&current->children)) {
     struct child_process *c = list_entry(ce, struct child_process, child_elem);
-      if (c->pid == child_tid) {
-          if (c->waited) {
-            return -1;
-          }
-          sema_down(&c->wait);
-          int status = c->exit_stat;
-          list_remove(c);
-          free(c);
-          return status;
-      }
-    c = list_next(c);
-    return -1;
+    if (c->pid == child_tid) {
+        if (c->waited) {
+          return -1;
+        }
+        c->waited = true;
+        sema_down(&c->wait);
+        int status = c->exit_stat;
+        list_remove(ce);
+        free(c);
+        return status;
+    }
+    ce = list_next(ce);
   }
-  
+  return -1;
 }
 
 /* Free the current process's resources. */
@@ -128,6 +132,10 @@ void process_exit (void)
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
+  if (cur->child_ptr != NULL) {
+    cur->child_ptr->exit_stat = cur->exit_stat;
+    sema_up(&cur->child_ptr->wait);
+  }
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
