@@ -545,7 +545,7 @@ static bool setup_stack(void **esp, const char *file_name) {
           return false;
         }
         *(void **) *esp = NULL;
-        hex_dump((uintptr_t) *esp, *esp, (uintptr_t) PHYS_BASE - (uintptr_t) *esp, true);
+        // hex_dump((uintptr_t) *esp, *esp, (uintptr_t) PHYS_BASE - (uintptr_t) *esp, true);
         palloc_free_page(fn_copy);
     }
     else

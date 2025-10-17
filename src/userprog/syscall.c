@@ -19,7 +19,7 @@ void syscall_init (void)
 
 bool check_ptr (const void *ptr, struct intr_frame *f) 
 {
-  if (ptr == NULL || is_user_vaddr (ptr) || pagedir_get_page (thread_current()->pagedir, ptr) == NULL)
+  if (ptr == NULL || !is_user_vaddr (ptr) || pagedir_get_page (thread_current()->pagedir, ptr) == NULL)
   {
     thread_current()->exit_stat = -1;
     printf("%s: exit(%d)\n", thread_current()->name);
@@ -44,6 +44,9 @@ static void syscall_handler (struct intr_frame *f UNUSED)
 {
   // printf ("system call!\n");
   check_ptr (f->esp, f);
+  int *temp;
+  int *temp2;
+  int *temp3;
   int syscall_number = *((int*)f->esp);
   struct file_descriptor *file_desc;
   switch (syscall_number) {
@@ -55,6 +58,7 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       int* temp = (int *) f->esp + 1;
       check_ptr (temp, f);
       thread_current()->exit_stat = *temp;  
+      printf("%s: exit(%d)\n", thread_current()->name, *temp);
       thread_exit();
       break;
     }
@@ -68,17 +72,18 @@ static void syscall_handler (struct intr_frame *f UNUSED)
         thread_exit();
       }
       while (executable != '\n') {
-        check_ptr(t, f);
+        check_ptr(executable, f);
         executable++;
       }
       
       lock_acquire(&file_lock);
+      printf("%s: exit(%d)\n", thread_current()->name, *temp);
       f->eax = process_execute((const char*) *temp);
       lock_release(&file_lock);
       break;
     }
     case SYS_WAIT: {
-      int *temp = (int*) f->esp + 1;
+      temp = (int*) f->esp + 1;
       check_ptr(temp, f);
       f->eax = process_wait((tid_t) *temp);
       break;
@@ -170,28 +175,29 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       lock_release(&file_lock);
       break;
 
-    case SYS_WRITE:
-      temp = (int*)f->esp + 1;
-      temp2 = *((int*) f->esp + 2);
-      temp3 = ((int*) f->esp + 3);
-      if (pagedir_get_page(thread_current()->pagedir, (const void *) temp2) == NULL) {
-        thread_current() ->status = -1;
-        thread_exit();
-      }
-      if (!temp || !temp3) {
-        thread_exit();
+    case SYS_WRITE: {
+      int *t = (int*)f->esp + 1;
+      void **t2 = (void**)(int*) f->esp + 2;
+      unsigned *t3 = (unsigned*) f->esp + 3;
+      check_ptr(t, f);
+      check_ptr(t2, f);
+      check_ptr(t3, f);
+      if (*t == 1) {
+        f->eax = *t3;
+        putbuf(*t2, *t3);
+        break;
       }
       lock_acquire(&file_lock);
       file_desc = find_filept(*temp);
       if (file_desc == NULL) {
         f->eax = -1;
         lock_release(&file_lock);
-        thread_exit();
+        break;
       }
-      f->eax = file_write(file_desc->file, (const void*) temp2, (int32_t) *temp3);
+      f->eax = file_write(file_desc->file, (const void*) temp2, (int32_t) *t3);
       lock_release(&file_lock);
       break;
-
+    }
     case SYS_SEEK:
       temp = (int*)(f->esp) + 1;
       temp2 = (unsigned*)(int*)(f->esp) + 2;
