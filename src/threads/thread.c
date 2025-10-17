@@ -548,18 +548,6 @@ static tid_t allocate_tid (void)
   return tid;
 }
 
-struct thread* match_thread_to_tid(tid_t tid) {
-  struct list_elem *tid_elem = list_begin(&all_list);
-  while (tid_elem != list_end(&all_list)) {
-    struct thread *temp = list_entry(tid_elem, struct thread, allelem);
-    if (temp->tid == tid) {
-      return temp;
-    }
-    tid_elem = list_next(tid_elem);
-  }
-  return NULL;
-}
-
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);

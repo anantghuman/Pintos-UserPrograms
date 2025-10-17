@@ -181,6 +181,10 @@ void process_exit (void)
          directory, or our active page directory will be one
          that's been freed (and cleared). */
       cur->pagedir = NULL;
+      if (cur->running_file != NULL) 
+      {
+        file_allow_write(cur->running_file);
+      }
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
@@ -391,7 +395,12 @@ bool load (const char *file_name, void (**eip) (void), void **esp)
 
 done:
   /* We arrive here whether the load is successful or not. */
-  file_close (file);
+  if (success && file != NULL) {
+    file_deny_write(file);
+    t->running_file = file;
+  } else {
+    file_close(file);
+  }
   return success;
 }
 

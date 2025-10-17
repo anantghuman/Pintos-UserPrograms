@@ -98,6 +98,7 @@ struct thread
   struct list_elem elem; /* List element. */
   struct list fd_table;
   int current_fd;
+  struct file *running_file;
 
   struct list children;
   struct child_process *child_ptr;
@@ -151,8 +152,6 @@ const char *thread_name (void);
 
 void thread_exit (void) NO_RETURN;
 void thread_yield (void);
-
-struct thread* match_thread_to_tid(tid_t tid);
 
 /* Performs some operation on thread t, given auxiliary data AUX. */
 typedef void thread_action_func (struct thread *t, void *aux);
