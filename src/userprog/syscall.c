@@ -84,20 +84,20 @@ static void syscall_handler (struct intr_frame *f UNUSED)
         }
       }
       tid_t tid = process_execute((const char*) executable);
-      struct child_process *c = NULL;
+      struct child_process *ch = NULL;
       for (struct list_elem *c = list_begin(&thread_current()->children); c != list_end(&thread_current()->children); c = list_next(c)) {
         struct child_process *child = list_entry(c, struct child_process, child_elem);
         if (child->pid == tid) {
-          c = child;
+          ch = child;
           break;
         }
       }
-      if (c == NULL || tid == TID_ERROR) {
+      if (ch == NULL || tid == TID_ERROR) {
         f->eax = -1;
         break;
       }
-      sema_down(&c->load_wait);
-      if (!c->success) {
+      sema_down(&ch->load_wait);
+      if (!ch->success) {
         tid = TID_ERROR;
       }
       if (tid == TID_ERROR) {

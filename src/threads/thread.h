@@ -124,6 +124,8 @@ struct child_process {
    bool waited;
    struct semaphore wait;
    struct list_elem child_elem;
+   bool success;
+   struct semaphore load_wait;
 };
 
 /* If false (default), use round-robin scheduler.

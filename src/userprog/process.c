@@ -43,10 +43,6 @@ tid_t process_execute (const char *file_name)
   strlcpy (fn_copy, file_name, PGSIZE);
 
   char *name = palloc_get_page (0);
-  if (!name) {
-    palloc_free_page(fn_copy);
-    return TID_ERROR;
-  }
   if (name == NULL)
     {
       palloc_free_page (fn_copy);
@@ -56,7 +52,7 @@ tid_t process_execute (const char *file_name)
   char *temp;
   char *n = strtok_r (name, " ", &temp);
   struct child_process *c = malloc(sizeof(*c));
-  c->pid = NULL;
+  c->pid = -1;
   c->waited = false;
   c->exit_stat = -1;
   sema_init(&c->wait, 0);
@@ -82,7 +78,14 @@ tid_t process_execute (const char *file_name)
   }
 
   list_push_back(&thread_current()->children, &c->child_elem);
-  struct thread *child_t = match_thread_to_tid(tid);
+  struct thread *child_t = NULL;
+  for (struct list_elem *c = list_begin(&thread_current()->children); c!= list_end(&thread_current()->children); c = list_next(c)) {
+    struct child_process *child = list_entry(c, struct child_process, child_elem);
+    if (child->pid == tid) {
+      child_t = child;
+      break;
+    }
+  }
   child_t->child_ptr = c;
   return tid;
 }
@@ -301,8 +304,8 @@ bool load (const char *file_name, void (**eip) (void), void **esp)
   file = filesys_open (name);
   if (file == NULL)
     {
-      palloc_free_page(name);
       printf ("load: %s: open failed\n", name);
+      palloc_free_page(name);
       goto done;
     }
   palloc_free_page (name);
