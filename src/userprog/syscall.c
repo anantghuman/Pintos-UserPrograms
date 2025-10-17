@@ -17,25 +17,30 @@ void syscall_init (void)
   lock_init (&file_lock);
 }
 
+/* Verifies that a pointer is valid, Otherwise returns -1*/
 void check_ptr (const void *ptr) 
 {
-  if (ptr == NULL || !is_user_vaddr (ptr) || pagedir_get_page (thread_current()->pagedir, ptr) == NULL)
+  if (ptr == NULL || !is_user_vaddr (ptr) || 
+      pagedir_get_page (thread_current ()->pagedir, ptr) == NULL)
   {
     thread_current()->exit_stat = -1;
-    printf("%s: exit(-1)\n", thread_current()->name);
+    printf("%s: exit(-1)\n", thread_current ()->name);
     thread_exit();
   }
 }
 
-struct file_descriptor *find_filept(int fd) {
-  struct thread *temp = thread_current();
-  struct list_elem *i = list_begin(&temp->fd_table);
-  while (i != list_end(&temp->fd_table)) {
-    struct file_descriptor *file_desc = list_entry(i, struct file_descriptor, file_elem);
+/* Returns the file descriptor for a given FD. */
+struct file_descriptor *find_filept(int fd) 
+{
+  struct thread *fd_ptr = thread_current ();
+  struct list_elem *i = list_begin (&fd_ptr->fd_table);
+  while (i != list_end (&fd_ptr->fd_table)) {
+    struct file_descriptor *file_desc = 
+    list_entry (i, struct file_descriptor, file_elem);
     if (file_desc->num_fd == fd) {
       return file_desc;
     }
-    i = list_next(i);
+    i = list_next (i);
     
   }
   return NULL;
@@ -43,37 +48,35 @@ struct file_descriptor *find_filept(int fd) {
 
 static void syscall_handler (struct intr_frame *f UNUSED)
 {
-  // printf ("system call!\n");
   check_ptr (f->esp);
   check_ptr ((const int*) f->esp + 3);
-  int *temp;
-  int *temp2;
-  int *temp3;
-  int syscall_number = *(int*)f->esp;
+  int *fd_ptr;  
+  int *buf_ptr;
+  int *size_ptr;
+  int syscall_number = *(int *) f->esp;
   struct file_descriptor *file_desc;
   switch (syscall_number) {
     case SYS_HALT:
-      shutdown_power_off();
+      shutdown_power_off ();
       break;
 
     case SYS_EXIT: {
-      int* temp = (int *) f->esp + 1;
-      check_ptr (temp);
-      thread_current()->exit_stat = *temp;  
-      printf("%s: exit(%d)\n", thread_current()->name, *temp);
-      thread_exit();
+      int* fd_ptr = (int *) f->esp + 1;
+      check_ptr (fd_ptr);
+      thread_current ()->exit_stat = *fd_ptr;  
+      printf("%s: exit(%d)\n", thread_current ()->name, *fd_ptr);
+      thread_exit ();
       break;
     }
+
     case SYS_EXEC: {
-      char **temp = (char **)((int*) f->esp + 1);
-      check_ptr(temp);
-      check_ptr(*temp);
-      char *executable = *temp;
-      if (executable == NULL || *executable == '\0') {
+      char **fd_ptr = (char **)((int *) f->esp + 1);
+      check_ptr (fd_ptr);
+      check_ptr (*fd_ptr);
+      char *executable = *fd_ptr;
+      if (executable == NULL || *executable == '\0') 
+      {
         f->eax = -1;
-        // thread_current()->exit_stat = -1;
-        // printf("%s: exit(%d)\n", thread_current()->name, -1);
-        // thread_exit();
         break;
       }
 
@@ -83,10 +86,12 @@ static void syscall_handler (struct intr_frame *f UNUSED)
           break;
         }
       }
-      tid_t tid = process_execute((const char*) executable);
+      tid_t tid = process_execute ((const char *) executable);
       struct child_process *ch = NULL;
-      for (struct list_elem *c = list_begin(&thread_current()->children); c != list_end(&thread_current()->children); c = list_next(c)) {
-        struct child_process *child = list_entry(c, struct child_process, child_elem);
+      for (struct list_elem *c = list_begin(&thread_current ()->children); 
+              c != list_end(&thread_current ()->children); c = list_next (c)) {
+        struct child_process *child = list_entry (c, struct child_process,
+                                                               child_elem);
         if (child->pid == tid) {
           ch = child;
           break;
@@ -96,10 +101,10 @@ static void syscall_handler (struct intr_frame *f UNUSED)
         f->eax = -1;
         break;
       }
-      sema_down(&ch->load_wait);
+      sema_down (&ch->load_wait);
       if (!ch->success) {
         tid = TID_ERROR;
-        list_remove(&ch->child_elem);
+        list_remove (&ch->child_elem);
       }
       if (tid == TID_ERROR) {
         f->eax = -1;
@@ -108,24 +113,26 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       }
       break;
     }
+
     case SYS_WAIT: {
-      int* temp = (int*) f->esp + 1;
-      check_ptr(temp);
-      f->eax = process_wait((tid_t) *temp);
+      int* fd_ptr = (int*) f->esp + 1;
+      check_ptr (fd_ptr);
+      f->eax = process_wait ((tid_t) *fd_ptr);
       break;
     }
+
     case SYS_CREATE: {
-      char **temp = (char **)f->esp + 1;
-      int *temp2 = (int *) f->esp + 2;
-      check_ptr(temp);
-      check_ptr(*temp);
-      check_ptr(temp2);
+      char **fd_ptr = (char **) f->esp + 1;
+      int *buf_ptr = (int *) f->esp + 2;
+      check_ptr (fd_ptr);
+      check_ptr (*fd_ptr);
+      check_ptr (buf_ptr);
       
-      char *file_name = *temp;
+      char *file_name = *fd_ptr;
       if (file_name == NULL || *file_name == '\0') {
-        thread_current()->exit_stat = -1;
-        printf("%s: exit(%d)\n", thread_current()->name, -1);
-        thread_exit();
+        thread_current ()->exit_stat = -1;
+        printf("%s: exit(%d)\n", thread_current ()->name, -1);
+        thread_exit ();
       }
       
       char *t = file_name;
@@ -134,30 +141,30 @@ static void syscall_handler (struct intr_frame *f UNUSED)
         t++;
       }
 
-      lock_acquire(&file_lock);
-      f->eax = filesys_create((const char*)*temp, (unsigned)*temp2);
-      lock_release(&file_lock);
+      lock_acquire (&file_lock);
+      f->eax = filesys_create ((const char*) *fd_ptr, (unsigned) *buf_ptr);
+      lock_release (&file_lock);
       break;
     }
     case SYS_REMOVE:
-      int *temp = (int*) f->esp + 1;
-      check_ptr(temp);
-      check_ptr((const char*)*temp);
-      lock_acquire(&file_lock);
-      f->eax = filesys_remove((const char*) *temp);
-      lock_release(&file_lock);
+      int *fd_ptr = (int *) f->esp + 1;
+      check_ptr (fd_ptr);
+      check_ptr ((const char *) *fd_ptr);
+      lock_acquire (&file_lock);
+      f->eax = filesys_remove ((const char *) *fd_ptr);
+      lock_release (&file_lock);
       break;
 
     case SYS_OPEN: {
-      char **temp = (char **)(int*) f->esp + 1;
-      check_ptr(temp);
-      char *file_name = *temp;
+      char **fd_ptr = (char **)(int *) f->esp + 1;
+      check_ptr (fd_ptr);
+      char *file_name = *fd_ptr;
 
       if (file_name == NULL) {
         f->eax = -1;
         break;
       }
-      check_ptr(*temp);
+      check_ptr (*fd_ptr);
       if (*file_name == '\0') {
         f->eax = -1;
         break;
@@ -165,98 +172,99 @@ static void syscall_handler (struct intr_frame *f UNUSED)
 
       char *ch = file_name;
       while (*ch != '\0') {
-        check_ptr(ch);
+        check_ptr (ch);
         ch++;
       }
-      check_ptr(file_name);
-      lock_acquire(&file_lock);
-      struct file *file = filesys_open((const char*) *temp);
+      check_ptr (file_name);
+      lock_acquire (&file_lock);
+      struct file *file = filesys_open ((const char *) *fd_ptr);
       if (!file) {
         f->eax = -1;
-        lock_release(&file_lock);
+        lock_release (&file_lock);
         break;
       }
-      file_desc = malloc(sizeof(*file_desc));
-      file_desc->num_fd = thread_current()->current_fd++;
+      file_desc = malloc (sizeof (*file_desc));
+      file_desc->num_fd = thread_current ()->current_fd++;
       file_desc->file = file;
       f->eax = file_desc->num_fd;
-      list_push_back(&thread_current()->fd_table, &file_desc->file_elem);
+      list_push_back (&thread_current ()->fd_table, &file_desc->file_elem);
       f->eax = file_desc->num_fd;
-      lock_release(&file_lock);
+      lock_release (&file_lock);
       break;
     }
-    case SYS_FILESIZE:
-      temp = (int*) f->esp + 1;
-      check_ptr(temp);
 
-      lock_acquire(&file_lock);
-      file_desc = find_filept (*temp);
+    case SYS_FILESIZE:
+      fd_ptr = (int *) f->esp + 1;
+      check_ptr (fd_ptr);
+
+      lock_acquire (&file_lock);
+      file_desc = find_filept (*fd_ptr);
       if (!file_desc) {
         f->eax = -1;
       } else {
-        f->eax = file_length(file_desc->file);
+        f->eax = file_length (file_desc->file);
       }
-      lock_release(&file_lock);
+      lock_release (&file_lock);
       break;
       
     case SYS_READ:
-      temp = (int*) f->esp + 1;
-      temp2 = (void**) ((int*) f->esp + 2);
-      temp3 = (int*) f->esp + 3;
-      check_ptr(temp);
-      check_ptr(temp2);
-      check_ptr(temp3);
+      fd_ptr = (int *) f->esp + 1;
+      buf_ptr = (void **) ((int*) f->esp + 2);
+      size_ptr = (int *) f->esp + 3;
+      check_ptr (fd_ptr);
+      check_ptr (buf_ptr);
+      check_ptr (size_ptr);
 
-      if (*temp3 < 0) {
+      if (*size_ptr < 0) {
         f->eax = -1;
         break;
       }
-      if (*temp3 > 0) {
-        check_ptr(*temp2);
+      if (*size_ptr > 0) {
+        check_ptr (*buf_ptr);
       }
-      if (*temp == 0) {
-        uint8_t *t = (uint8_t*) *temp2;
+      if (*fd_ptr == 0) {
+        uint8_t *t = (uint8_t*) *buf_ptr;
         int i = 0;
-        while (i < *temp3) {
-          check_ptr(t + i);
-          t[i] = input_getc();
+        while (i < *size_ptr) {
+          check_ptr (t + i);
+          t[i] = input_getc ();
           i++;
         }
-        f->eax = *temp3;
+        f->eax = *size_ptr;
         break;
       }
 
-      if (*temp == 1) {
+      if (*fd_ptr == 1) {
         f->eax = -1;
         break;
       }
     
-      lock_acquire(&file_lock);
-      file_desc = find_filept(*temp);
+      lock_acquire (&file_lock);
+      file_desc = find_filept (*fd_ptr);
       if (file_desc == NULL) {
         f->eax = -1;
-        lock_release(&file_lock);
+        lock_release (&file_lock);
         break;
       }
-      f->eax = file_read(file_desc->file, *temp2, *temp3);
-      lock_release(&file_lock);
+      f->eax = file_read (file_desc->file, *buf_ptr, *size_ptr);
+      lock_release (&file_lock);
       break;
 
     case SYS_WRITE: {
-      int *t = (int*)f->esp + 1;
-      void **t2 = (void**)(int*) f->esp + 2;
-      unsigned *t3 = (unsigned*) f->esp + 3;
-      check_ptr(t);
-      check_ptr(t2);
-      check_ptr(t3);
+      int *t = (int *) f->esp + 1;
+      void **t2 = (void **)(int *) f->esp + 2;
+      unsigned *t3 = (unsigned *) f->esp + 3;
+      check_ptr (t);
+      check_ptr (t2);
+      check_ptr (t3);
       
       if (*t3 > 0) {
-        check_ptr(*t2);
+        check_ptr (*t2);
       }
 
       if (*t == 1) {
         f->eax = *t3;
-        putbuf((const char*)*t2, *t3);
+        putbuf ((const char *) *t2, *t3);
         break;
       }
 
@@ -265,56 +273,58 @@ static void syscall_handler (struct intr_frame *f UNUSED)
         break;
       }
 
-      lock_acquire(&file_lock);
-      file_desc = find_filept(*t);
+      lock_acquire (&file_lock);
+      file_desc = find_filept (*t);
       if (file_desc == NULL) {
         f->eax = -1;
-        lock_release(&file_lock);
+        lock_release (&file_lock);
         break;
       }
-      f->eax = file_write(file_desc->file, *t2, *t3);
-      lock_release(&file_lock);
+      f->eax = file_write (file_desc->file, *t2, *t3);
+      lock_release (&file_lock);
       break;
     }
+
     case SYS_SEEK:
-      temp = (int*)(f->esp) + 1;
-      unsigned *t2 = (unsigned*)(int*)(f->esp) + 2;
-      check_ptr(temp);
-      check_ptr(t2);
-      lock_acquire(&file_lock);
-      file_desc = find_filept(*temp);
+      fd_ptr = (int *) (f->esp) + 1;
+      unsigned *t2 = (unsigned *)(int *) (f->esp) + 2;
+      check_ptr (fd_ptr);
+      check_ptr (t2);
+      lock_acquire (&file_lock);
+      file_desc = find_filept (*fd_ptr);
       if (file_desc != NULL) {
-        file_seek(file_desc->file, *t2);
+        file_seek (file_desc->file, *t2);
       } 
-      lock_release(&file_lock);
+      lock_release (&file_lock);
       break;
       
     case SYS_TELL:
-      temp = (int*)(f->esp) + 1;
-      check_ptr(temp);
-      lock_acquire(&file_lock);
-      file_desc = find_filept(*temp);
+      fd_ptr = (int *) (f->esp) + 1;
+      check_ptr (fd_ptr);
+      lock_acquire (&file_lock);
+      file_desc = find_filept (*fd_ptr);
       if (file_desc) {
-        f->eax = file_tell(file_desc->file);
+        f->eax = file_tell (file_desc->file);
       } else {
         f->eax = -1;
       }
-      lock_release(&file_lock);
+      lock_release (&file_lock);
       break;
+
     case SYS_CLOSE:
-      temp = (int*)(f->esp) + 1;
-      check_ptr(temp);
-      if (*temp < 2) {
+      fd_ptr = (int *) (f->esp) + 1;
+      check_ptr (fd_ptr);
+      if (*fd_ptr < 2) {
         break;
       }
-      lock_acquire(&file_lock);
-      file_desc = find_filept(*temp);
+      lock_acquire (&file_lock);
+      file_desc = find_filept (*fd_ptr);
       if (file_desc) {
-        file_close(file_desc->file);
-        list_remove(&file_desc->file_elem);
-        free(file_desc);
+        file_close (file_desc->file);
+        list_remove (&file_desc->file_elem);
+        free (file_desc);
       }
-      lock_release(&file_lock);
+      lock_release (&file_lock);
       break;
   }
   // thread_current()->status = -1;
