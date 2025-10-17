@@ -99,6 +99,7 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       sema_down(&ch->load_wait);
       if (!ch->success) {
         tid = TID_ERROR;
+        list_remove(&ch->child_elem);
       }
       if (tid == TID_ERROR) {
         f->eax = -1;

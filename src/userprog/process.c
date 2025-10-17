@@ -78,15 +78,6 @@ tid_t process_execute (const char *file_name)
   }
 
   list_push_back(&thread_current()->children, &c->child_elem);
-  struct thread *child_t = NULL;
-  for (struct list_elem *c = list_begin(&thread_current()->children); c!= list_end(&thread_current()->children); c = list_next(c)) {
-    struct child_process *child = list_entry(c, struct child_process, child_elem);
-    if (child->pid == tid) {
-      child_t = child;
-      break;
-    }
-  }
-  child_t->child_ptr = c;
   return tid;
 }
 
@@ -164,10 +155,24 @@ void process_exit (void)
   struct thread *cur = thread_current ();
   uint32_t *pd;
 
+  while (!list_empty(&cur ->fd_table)) {
+    struct list_elem *temp = list_pop_front(&cur->fd_table);
+    struct file_descriptor *fd = list_entry(temp, struct file_descriptor, file_elem);
+    file_close(fd->file);
+    free(fd);
+  }
+
   if (cur->child_ptr != NULL) {
     cur->child_ptr->exit_stat = cur->exit_stat;
     sema_up(&cur->child_ptr->wait);
   }
+
+  if (cur->running_file != NULL) 
+      {
+        file_allow_write(cur->running_file);
+        file_close(cur->running_file);
+        cur->running_file = NULL;
+      }
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
@@ -181,10 +186,6 @@ void process_exit (void)
          directory, or our active page directory will be one
          that's been freed (and cleared). */
       cur->pagedir = NULL;
-      if (cur->running_file != NULL) 
-      {
-        file_allow_write(cur->running_file);
-      }
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
@@ -302,13 +303,13 @@ bool load (const char *file_name, void (**eip) (void), void **esp)
   strlcpy (name, file_name, strlen(file_name) + 1);
   
   char *temp;
-  name = strtok_r(name, " ", &temp);
+  char *n = strtok_r(name, " ", &temp);
 
   /* Open executable file. */
-  file = filesys_open (name);
+  file = filesys_open (n);
   if (file == NULL)
     {
-      printf ("load: %s: open failed\n", name);
+      printf ("load: %s: open failed\n", n);
       palloc_free_page(name);
       goto done;
     }
