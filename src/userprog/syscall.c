@@ -67,17 +67,20 @@ static void syscall_handler (struct intr_frame *f UNUSED)
     case SYS_EXEC: {
       char **temp = (char **)(int*) f->esp + 1;
       check_ptr(temp);
+      check_ptr(*temp);
       char *executable = *temp;
       if (executable == NULL || *executable == '\0') {
+        f->eax = -1;
         thread_current()->exit_stat = -1;
         printf("%s: exit(%d)\n", thread_current()->name, -1);
         thread_exit();
       }
 
-      char *s = executable;
-      while (*s != '\0') {
-        check_ptr(s);
-        s++;
+      for (char* t = executable; ; t++) {
+        check_ptr(t);
+        if (*t = '\0') {
+          break;
+        }
       }
       
       lock_acquire(&file_lock);
