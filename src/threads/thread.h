@@ -113,6 +113,14 @@ struct thread
   unsigned magic; /* Detects stack overflow. */
 };
 
+//All changes in thread.h were driven by Sai
+//Explanation: We added these structs in order 
+// to support per process fd tables and 
+// child process tracking and communication.
+// In the thread struct, we added lists for
+// file descriptors and child processes along
+// with other necessary variables in order to
+// manage these structs within the syscalls.
 struct file_descriptor {
    int num_fd;
    struct file *file;
