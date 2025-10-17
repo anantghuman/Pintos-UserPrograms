@@ -432,11 +432,11 @@ static void init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
 
-  list_init(&initial_thread->fd_table);
-  initial_thread->current_fd = 2;
-  list_init(&initial_thread->children);
-  initial_thread->exit_stat = -1;
-  initial_thread->child_ptr = NULL;
+  list_init(&t->fd_table);
+  t->current_fd = 2;
+  list_init(&t->children);
+  t->exit_stat = -1;
+  t->child_ptr = NULL;
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
