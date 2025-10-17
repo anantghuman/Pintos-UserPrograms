@@ -17,12 +17,12 @@ void syscall_init (void)
   lock_init (&file_lock);
 }
 
-bool check_ptr (const void *ptr) 
+void check_ptr (const void *ptr) 
 {
   if (ptr == NULL || !is_user_vaddr (ptr) || pagedir_get_page (thread_current()->pagedir, ptr) == NULL)
   {
     thread_current()->exit_stat = -1;
-    printf("%s: exit(%d)\n", thread_current()->name);
+    printf("%s: exit(-1)\n", thread_current()->name);
     thread_exit();
   }
 }
@@ -44,6 +44,7 @@ static void syscall_handler (struct intr_frame *f UNUSED)
 {
   // printf ("system call!\n");
   check_ptr (f->esp);
+  check_ptr ((const int*) f->esp + 3);
   int *temp;
   int *temp2;
   int *temp3;
@@ -66,7 +67,7 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       char **temp = (char **)(int*) f->esp + 1;
       check_ptr(temp);
       char *executable = *temp;
-      if (executable == NULL || executable == '\0') {
+      if (executable == NULL || *executable == '\0') {
         thread_current()->exit_stat = -1;
         printf("%s: exit(%d)\n", thread_current()->name, -1);
         thread_exit();
@@ -84,7 +85,7 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       break;
     }
     case SYS_WAIT: {
-      temp = (int*) f->esp + 1;
+      int* temp = (int*) f->esp + 1;
       check_ptr(temp);
       f->eax = process_wait((tid_t) *temp);
       break;
@@ -93,10 +94,11 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       char **temp = (char **)f->esp + 1;
       int *temp2 = (int *) f->esp + 2;
       check_ptr(temp);
+      check_ptr(*temp);
       check_ptr(temp2);
       
       char *file_name = *temp;
-      if (file_name == NULL || file_name == '\0') {
+      if (file_name == NULL || *file_name == '\0') {
         thread_current()->exit_stat = -1;
         printf("%s: exit(%d)\n", thread_current()->name, -1);
         thread_exit();
@@ -124,12 +126,10 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       lock_release(&file_lock);
       break;
 
-    case SYS_OPEN:
-      temp = (int*) f->esp + 1;
-      if (!temp || pagedir_get_page(thread_current()->pagedir, (const char*) *temp) == NULL) {
-        thread_current() ->status = -1;
-        thread_exit();
-      }
+    case SYS_OPEN: {
+      char **temp = (char **)(int*) f->esp + 1;
+      check_ptr(temp);
+      check_ptr(*temp);
       lock_acquire(&file_lock);
       struct file *file = file_open((const char*) *temp);
       if (!file) {
@@ -145,7 +145,7 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       f->eax = file_desc->num_fd;
       lock_release(&file_lock);
       break;
-
+    }
     case SYS_FILESIZE:
       temp = (int*) f->esp + 1;
       lock_acquire(&file_lock);
