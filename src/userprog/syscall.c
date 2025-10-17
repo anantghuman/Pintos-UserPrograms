@@ -199,6 +199,7 @@ static void syscall_handler (struct intr_frame *f UNUSED)
         while (i < *temp3) {
           check_ptr(t + i);
           t[i] = input_getc();
+          i++;
         }
         f->eax = *temp3;
         break;
@@ -214,9 +215,9 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       if (file_desc == NULL) {
         f->eax = -1;
         lock_release(&file_lock);
-        thread_exit();
+        break;
       }
-      f->eax = file_read(file_desc->file, (void*) temp2, (int32_t) *temp3);
+      f->eax = file_read(file_desc->file, *temp2, *temp3);
       lock_release(&file_lock);
       break;
 
@@ -250,35 +251,26 @@ static void syscall_handler (struct intr_frame *f UNUSED)
         lock_release(&file_lock);
         break;
       }
-      f->eax = file_write(file_desc->file, (const void*) temp2, (int32_t) *t3);
+      f->eax = file_write(file_desc->file, *t2, *t3);
       lock_release(&file_lock);
       break;
     }
     case SYS_SEEK:
       temp = (int*)(f->esp) + 1;
-      temp2 = (unsigned*)(int*)(f->esp) + 2;
-      if (!temp2 || pagedir_get_page(thread_current()->pagedir, temp2) == NULL) {
-        thread_current() ->status = -1;
-        thread_exit();
-      }
-      if (!temp) {
-        thread_exit();
-      }
+      unsigned *t2 = (unsigned*)(int*)(f->esp) + 2;
+      check_ptr(temp);
+      check_ptr(t2);
       lock_acquire(&file_lock);
       file_desc = find_filept(*temp);
-      if (file_desc == NULL) {
-        lock_release(&file_lock);
-        thread_exit();
-      }
-      file_seek(file_desc->file, *temp2);
+      if (file_desc != NULL) {
+        file_seek(file_desc->file, *t2);
+      } 
       lock_release(&file_lock);
       break;
       
     case SYS_TELL:
       temp = (int*)(f->esp) + 1;
-      // if (!temp || pagedir_get_page(thread_current()->pagedir, temp) == NULL) {
-      //   thread_exit();
-      // }
+      check_ptr(temp);
       lock_acquire(&file_lock);
       file_desc = find_filept(*temp);
       if (file_desc) {
