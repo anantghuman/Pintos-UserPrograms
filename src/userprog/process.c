@@ -21,6 +21,11 @@
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
+struct shared_data {
+  char *fn_copy;
+  struct child_process *c;
+};
+
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
@@ -38,6 +43,10 @@ tid_t process_execute (const char *file_name)
   strlcpy (fn_copy, file_name, PGSIZE);
 
   char *name = palloc_get_page (0);
+  if (!name) {
+    palloc_free_page(fn_copy);
+    return TID_ERROR;
+  }
   if (name == NULL)
     {
       palloc_free_page (fn_copy);
@@ -46,22 +55,34 @@ tid_t process_execute (const char *file_name)
   strlcpy (name, file_name, PGSIZE);
   char *temp;
   char *n = strtok_r (name, " ", &temp);
-
-  tid = thread_create (n, PRI_DEFAULT, start_process, fn_copy);
-  palloc_free_page(name);
-  if (tid == TID_ERROR) {
-    palloc_free_page (fn_copy);
-  }
   struct child_process *c = malloc(sizeof(*c));
   c->pid = tid;
   c->waited = false;
   c->exit_stat = -1;
   sema_init(&c->wait, 0);
+  sema_init(&c->load_wait, 0);
+  c->success = false;
+  struct shared_data *aux = malloc(sizeof(*aux));
+  if (!aux) {
+    palloc_free_page(name);
+    palloc_free_page(fn_copy);
+    free(c);
+    return TID_ERROR;
+  }
+  aux->fn_copy = fn_copy;
+  aux->c = c;
+  tid = thread_create (n, PRI_DEFAULT, start_process, aux);
+  palloc_free_page(name);
+  if (tid == TID_ERROR) {
+    palloc_free_page (fn_copy);
+    free(c);
+    free(aux);
+    return TID_ERROR;
+  }
+
   list_push_back(&thread_current()->children, &c->child_elem);
   struct thread *child_t = match_thread_to_tid(tid);
-  if (child_t != NULL) {
-    child_t->child_ptr = c;
-  }
+  child_t->child_ptr = c;
   return tid;
 }
 
@@ -69,9 +90,13 @@ tid_t process_execute (const char *file_name)
    running. */
 static void start_process (void *file_name_)
 {
-  char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
+  struct shared_data *aux = file_name_;
+  char *file_name = aux->fn_copy;
+  struct child_process *c = aux->c;
+  free(aux);
+  thread_current()->child_ptr = c;
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -79,7 +104,10 @@ static void start_process (void *file_name_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
-
+  if (c != NULL) {
+    c->success = success;
+    sema_up(&c->load_wait);
+  }
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success)

@@ -71,9 +71,10 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       char *executable = *temp;
       if (executable == NULL || *executable == '\0') {
         f->eax = -1;
-        thread_current()->exit_stat = -1;
-        printf("%s: exit(%d)\n", thread_current()->name, -1);
-        thread_exit();
+        // thread_current()->exit_stat = -1;
+        // printf("%s: exit(%d)\n", thread_current()->name, -1);
+        // thread_exit();
+        break;
       }
 
       for (char* t = executable; ; t++) {
@@ -82,10 +83,21 @@ static void syscall_handler (struct intr_frame *f UNUSED)
           break;
         }
       }
-      
-      lock_acquire(&file_lock);
-      f->eax = process_execute((const char*) executable);
-      lock_release(&file_lock);
+      tid_t tid = process_execute((const char*) executable);
+      struct child_process *c = match_thread_to_tid(tid);
+      if (c == NULL || tid == TID_ERROR) {
+        f->eax = -1;
+        break;
+      }
+      sema_down(&c->load_wait);
+      if (!c->success) {
+        tid = TID_ERROR;
+      }
+      if (tid == TID_ERROR) {
+        f->eax = -1;
+      } else {
+        f->eax = tid;
+      }
       break;
     }
     case SYS_WAIT: {
