@@ -143,7 +143,7 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       }
       check_ptr(file_name);
       lock_acquire(&file_lock);
-      struct file *file = file_open((const char*) *temp);
+      struct file *file = filesys_open((const char*) *temp);
       if (!file) {
         f->eax = -1;
         lock_release(&file_lock);
