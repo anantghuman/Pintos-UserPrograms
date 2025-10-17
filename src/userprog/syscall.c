@@ -130,12 +130,18 @@ static void syscall_handler (struct intr_frame *f UNUSED)
     case SYS_OPEN: {
       char **temp = (char **)(int*) f->esp + 1;
       check_ptr(temp);
-      // check_ptr(*temp);
       char *file_name = *temp;
-      if (file_name == NULL || file_name == '\0') {
+
+      if (file_name == NULL) {
         f->eax = -1;
         break;
       }
+      check_ptr(*temp);
+      if (*file_name == '\0') {
+        f->eax = -1;
+        break;
+      }
+
       char *ch = file_name;
       while (*ch != '\0') {
         check_ptr(ch);
@@ -160,28 +166,49 @@ static void syscall_handler (struct intr_frame *f UNUSED)
     }
     case SYS_FILESIZE:
       temp = (int*) f->esp + 1;
+      check_ptr(temp);
+
       lock_acquire(&file_lock);
       file_desc = find_filept (*temp);
       if (!file_desc) {
         f->eax = -1;
-        lock_release(&file_lock);
-        thread_exit();
+      } else {
+        f->eax = file_length(file_desc->file);
       }
-      f->eax = file_length(file_desc->file);
       lock_release(&file_lock);
       break;
       
     case SYS_READ:
       temp = (int*) f->esp + 1;
-      temp2 = (int*) f->esp + 2;
+      temp2 = (void**) ((int*) f->esp + 2);
       temp3 = (int*) f->esp + 3;
-      if (!temp2 || pagedir_get_page(thread_current()->pagedir, (const void*)temp2) == NULL) {
-        thread_current() ->status = -1;
-        thread_exit();
+      check_ptr(temp);
+      check_ptr(temp2);
+      check_ptr(temp3);
+
+      if (*temp3 < 0) {
+        f->eax = -1;
+        break;
       }
-      if (!temp || !temp3) {
-        thread_exit();
+      if (*temp3 > 0) {
+        check_ptr(*temp2);
       }
+      if (*temp == 0) {
+        uint8_t *t = (uint8_t*) *temp2;
+        int i = 0;
+        while (i < *temp3) {
+          check_ptr(t + i);
+          t[i] = input_getc();
+        }
+        f->eax = *temp3;
+        break;
+      }
+
+      if (*temp == 1) {
+        f->eax = -1;
+        break;
+      }
+    
       lock_acquire(&file_lock);
       file_desc = find_filept(*temp);
       if (file_desc == NULL) {
@@ -200,11 +227,22 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       check_ptr(t);
       check_ptr(t2);
       check_ptr(t3);
+      
+      if (*t3 > 0) {
+        check_ptr(*t2);
+      }
+
       if (*t == 1) {
         f->eax = *t3;
-        putbuf(*t2, *t3);
+        putbuf((const char*)*t2, *t3);
         break;
       }
+
+      if (*t == 0) {
+        f->eax = -1;
+        break;
+      }
+
       lock_acquire(&file_lock);
       file_desc = find_filept(*t);
       if (file_desc == NULL) {
