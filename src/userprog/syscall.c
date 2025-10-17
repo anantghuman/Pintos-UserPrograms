@@ -130,7 +130,18 @@ static void syscall_handler (struct intr_frame *f UNUSED)
     case SYS_OPEN: {
       char **temp = (char **)(int*) f->esp + 1;
       check_ptr(temp);
-      check_ptr(*temp);
+      // check_ptr(*temp);
+      char *file_name = *temp;
+      if (file_name == NULL || file_name == '\0') {
+        f->eax = -1;
+        break;
+      }
+      char *ch = file_name;
+      while (*ch != '\0') {
+        check_ptr(ch);
+        ch++;
+      }
+      check_ptr(file_name);
       lock_acquire(&file_lock);
       struct file *file = file_open((const char*) *temp);
       if (!file) {
@@ -195,7 +206,7 @@ static void syscall_handler (struct intr_frame *f UNUSED)
         break;
       }
       lock_acquire(&file_lock);
-      file_desc = find_filept(*temp);
+      file_desc = find_filept(*t);
       if (file_desc == NULL) {
         f->eax = -1;
         lock_release(&file_lock);
@@ -241,9 +252,10 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       break;
     case SYS_CLOSE:
       temp = (int*)(f->esp) + 1;
-      // if (!temp || pagedir_get_page(thread_current()->pagedir, temp) == NULL) {
-      //   thread_exit();
-      // }
+      check_ptr(temp);
+      if (*temp < 2) {
+        break;
+      }
       lock_acquire(&file_lock);
       file_desc = find_filept(*temp);
       if (file_desc) {
