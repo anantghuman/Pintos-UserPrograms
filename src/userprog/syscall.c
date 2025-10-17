@@ -78,7 +78,7 @@ static void syscall_handler (struct intr_frame *f UNUSED)
 
       for (char* t = executable; ; t++) {
         check_ptr(t);
-        if (*t = '\0') {
+        if (*t == '\0') {
           break;
         }
       }
@@ -121,10 +121,8 @@ static void syscall_handler (struct intr_frame *f UNUSED)
     }
     case SYS_REMOVE:
       int *temp = (int*) f->esp + 1;
-      if (!temp || pagedir_get_page(thread_current()->pagedir, (const char*) *temp) == NULL) {
-        thread_current() ->status = -1;
-        thread_exit();
-      }
+      check_ptr(temp);
+      check_ptr((const char*)*temp);
       lock_acquire(&file_lock);
       f->eax = filesys_remove((const char*) *temp);
       lock_release(&file_lock);
