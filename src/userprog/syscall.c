@@ -65,7 +65,7 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       break;
     }
     case SYS_EXEC: {
-      char **temp = (char **)(int*) f->esp + 1;
+      char **temp = (char **)((int*) f->esp + 1);
       check_ptr(temp);
       check_ptr(*temp);
       char *executable = *temp;
@@ -84,7 +84,14 @@ static void syscall_handler (struct intr_frame *f UNUSED)
         }
       }
       tid_t tid = process_execute((const char*) executable);
-      struct child_process *c = match_thread_to_tid(tid);
+      struct child_process *c = NULL;
+      for (struct list_elem *c = list_begin(&thread_current()->children); c != list_end(&thread_current()->children); c = list_next(c)) {
+        struct child_process *child = list_entry(c, struct child_process, child_elem);
+        if (child->pid == tid) {
+          c = child;
+          break;
+        }
+      }
       if (c == NULL || tid == TID_ERROR) {
         f->eax = -1;
         break;

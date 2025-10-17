@@ -56,7 +56,7 @@ tid_t process_execute (const char *file_name)
   char *temp;
   char *n = strtok_r (name, " ", &temp);
   struct child_process *c = malloc(sizeof(*c));
-  c->pid = tid;
+  c->pid = NULL;
   c->waited = false;
   c->exit_stat = -1;
   sema_init(&c->wait, 0);
@@ -72,6 +72,7 @@ tid_t process_execute (const char *file_name)
   aux->fn_copy = fn_copy;
   aux->c = c;
   tid = thread_create (n, PRI_DEFAULT, start_process, aux);
+  c->pid = tid;
   palloc_free_page(name);
   if (tid == TID_ERROR) {
     palloc_free_page (fn_copy);
