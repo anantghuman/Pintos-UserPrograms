@@ -46,6 +46,11 @@ struct file_descriptor *find_filept(int fd)
   return NULL;
 }
 
+//We all drove on this function but specifications are below in each case
+//Explanation: Our goal within each switch case was to validate all 
+// pointers, strings, and buffers. We also made sure that we were using the 
+// right calls for each syscall. We used locks whenever necessary to prevent 
+// race conditions with the file system.
 static void syscall_handler (struct intr_frame *f UNUSED)
 {
   check_ptr (f->esp);
@@ -56,10 +61,11 @@ static void syscall_handler (struct intr_frame *f UNUSED)
   int syscall_number = *(int *) f->esp;
   struct file_descriptor *file_desc;
   switch (syscall_number) {
+    //Anant drove
     case SYS_HALT:
       shutdown_power_off ();
       break;
-
+    //Soham drove
     case SYS_EXIT: {
       int* fd_ptr = (int *) f->esp + 1;
       check_ptr (fd_ptr);
@@ -68,7 +74,7 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       thread_exit ();
       break;
     }
-
+    //Sai drove
     case SYS_EXEC: {
       char **fd_ptr = (char **)((int *) f->esp + 1);
       check_ptr (fd_ptr);
@@ -113,14 +119,14 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       }
       break;
     }
-
+    //Soham drove
     case SYS_WAIT: {
       int* fd_ptr = (int*) f->esp + 1;
       check_ptr (fd_ptr);
       f->eax = process_wait ((tid_t) *fd_ptr);
       break;
     }
-
+    //Anant drove
     case SYS_CREATE: {
       char **fd_ptr = (char **) f->esp + 1;
       int *buf_ptr = (int *) f->esp + 2;
@@ -146,6 +152,7 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       lock_release (&file_lock);
       break;
     }
+    //Soham drove
     case SYS_REMOVE:
       int *fd_ptr = (int *) f->esp + 1;
       check_ptr (fd_ptr);
@@ -154,7 +161,7 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       f->eax = filesys_remove ((const char *) *fd_ptr);
       lock_release (&file_lock);
       break;
-
+    //Anant drove
     case SYS_OPEN: {
       char **fd_ptr = (char **)(int *) f->esp + 1;
       check_ptr (fd_ptr);
@@ -192,7 +199,7 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       lock_release (&file_lock);
       break;
     }
-
+    //Anant drove
     case SYS_FILESIZE:
       fd_ptr = (int *) f->esp + 1;
       check_ptr (fd_ptr);
@@ -206,7 +213,7 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       }
       lock_release (&file_lock);
       break;
-      
+    // Soham drove
     case SYS_READ:
       fd_ptr = (int *) f->esp + 1;
       buf_ptr = (void **) ((int*) f->esp + 2);
@@ -249,7 +256,7 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       f->eax = file_read (file_desc->file, *buf_ptr, *size_ptr);
       lock_release (&file_lock);
       break;
-
+    //Soham drove
     case SYS_WRITE: {
       int *t = (int *) f->esp + 1;
       void **t2 = (void **)(int *) f->esp + 2;
@@ -284,7 +291,7 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       lock_release (&file_lock);
       break;
     }
-
+    //Soham drove
     case SYS_SEEK:
       fd_ptr = (int *) (f->esp) + 1;
       unsigned *t2 = (unsigned *)(int *) (f->esp) + 2;
@@ -297,7 +304,7 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       } 
       lock_release (&file_lock);
       break;
-      
+    //Soham drove
     case SYS_TELL:
       fd_ptr = (int *) (f->esp) + 1;
       check_ptr (fd_ptr);
@@ -310,7 +317,7 @@ static void syscall_handler (struct intr_frame *f UNUSED)
       }
       lock_release (&file_lock);
       break;
-
+    //Soham drove
     case SYS_CLOSE:
       fd_ptr = (int *) (f->esp) + 1;
       check_ptr (fd_ptr);

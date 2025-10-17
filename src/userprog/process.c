@@ -30,6 +30,12 @@ struct shared_data {
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
    thread id, or TID_ERROR if the thread cannot be created. */
+   // Sai drove
+   //Explanation: In this function, we made sure to
+   // parse the file name correctly and create the 
+   // parent and child processes correctly. We made
+   // sure that the children are always tracked in
+   // the parents' child list.
 tid_t process_execute (const char *file_name)
 {
   char *fn_copy;
@@ -83,6 +89,10 @@ tid_t process_execute (const char *file_name)
 
 /* A thread function that loads a user process and starts it
    running. */
+   // Sai drove
+   // Explanation: In this function, we made sure to
+   // load the success result into the child process
+   // and signal the parent about the load status.
 static void start_process (void *file_name_)
 {
   struct intr_frame if_;
@@ -127,6 +137,11 @@ static void start_process (void *file_name_)
 
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
+   // Sai drove
+   // Explanation: In this function, we made sure to search
+   // for the child process in the current process's child list.
+   // If we found it, we waited on its semaphore and retrieved
+   // its exit status. If not, we returned -1.
 int process_wait (tid_t child_tid UNUSED) {
   struct thread *current = thread_current ();
   struct list_elem *ce = list_begin (&current->children);
@@ -150,6 +165,10 @@ int process_wait (tid_t child_tid UNUSED) {
 }
 
 /* Free the current process's resources. */
+// Soham drove
+// Explanation: In this function, we made 
+// sure to signal the wait semaphore so
+// that the parent process can continue.
 void process_exit (void)
 {
   struct thread *cur = thread_current ();
@@ -280,6 +299,9 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
    Stores the executable's entry point into *EIP
    and its initial stack pointer into *ESP.
    Returns true if successful, false otherwise. */
+   //Soham drove
+   //Explanation: In this function, we made sure to
+   // print and palloc the file name properly.
 bool load (const char *file_name, void (**eip) (void), void **esp)
 {
   struct thread *t = thread_current ();
@@ -513,6 +535,13 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
   return true;
 }
 
+// All of us drove a bit on this function
+// Explanation: In this function, we made sure to
+// parse the file name correctly while setting up the 
+// stack. With the help of palloc, we allocated the 
+// neccessary memory and pages. We also made sure to
+// handle pointers properly in order to add the right
+// arguments onto the stack.
 static bool setup_stack(void **esp, const char *file_name) {
     uint8_t *kpage;
     bool success = false;
